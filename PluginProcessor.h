@@ -87,7 +87,8 @@ public:
     std::atomic<bool>  uiNote { false };
     std::array<double, 12> getHarmonicsSnapshot() const;
 
-    // taille de fenêtre mémorisée avec le projet (comme Ring Think) : -1 = défaut 67 %, 1 = 75 %, 2 = 100 %
+    // taille de fenêtre mémorisée avec le projet (comme Ring Think) : 0 = 60 %, 1 = 75 %, 2 = 100 %,
+    // -1 = pas de taille choisie pour cette instance (taille par défaut des nouvelles fenêtres)
     std::atomic<int> uiScaleIdx { -1 };
 
     static constexpr int kStateVersion = 1;

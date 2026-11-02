@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "BinaryData.h"
+#include "WigaWindowSize.h"
 
 namespace
 {
@@ -22,7 +23,8 @@ namespace
     constexpr float kStartAngle = juce::MathConstants<float>::pi * 1.25f;
     constexpr float kEndAngle   = juce::MathConstants<float>::pi * 2.75f;
 
-    const float kScales[3] = { ui::kDefaultScale, 0.75f, 1.0f };
+    constexpr int kNumSizes = 3;                                       // 60 % (défaut d'origine) / 75 % / 100 %
+    const float kScales[kNumSizes] = { ui::kDefaultScale, 0.75f, 1.0f };
 
     // ---- couleurs relevées sur le design ----
     const juce::Colour kMint     { 0xff7ef0d6 };
@@ -730,10 +732,18 @@ void PedalView::showContextMenu (int focus)
     if (fcc >= 0 && fcc != 64 && fcc != 80) foot.addItem (34, "CC " + juce::String (fcc) + " (learned)", true, true);
     m.addSubMenu ("Footswitch (MIDI)", foot);
 
+    // Plugin size : taille de cette fenêtre + taille par défaut des nouvelles fenêtres (comme Octopus)
     const int cur = getSizeIndex ? getSizeIndex() : -1;
-    size.addItem (104, "60 % (default)", true, cur < 0);
-    size.addItem (102, "75 %",  true, cur == 1);
-    size.addItem (103, "100 %", true, cur == 2);
+    const int def = WigaWindowSize::defaultIndex (JucePlugin_Name, kNumSizes);
+    const char* sizeNames[kNumSizes] = { "60 %", "75 %", "100 %" };
+    juce::PopupMenu defSize;
+    for (int i = 0; i < kNumSizes; ++i)
+    {
+        size.addItem (i == 0 ? 104 : 101 + i, juce::String (sizeNames[i]) + (i == def ? "  (default)" : ""), true, cur == i);
+        defSize.addItem (110 + i, sizeNames[i], true, i == def);
+    }
+    size.addSeparator();
+    size.addSubMenu ("Default size (new windows)", defSize);
     m.addSeparator();
     m.addSubMenu ("Plugin size", size);
 
@@ -746,7 +756,12 @@ void PedalView::showContextMenu (int focus)
         {
             if (auto* prm = p.apvts.getParameter (id)) prm->setValueNotifyingHost (prm->convertTo0to1 ((float) v));
         };
-        if (r >= 102 && r <= 104)        { if (safe->onSizeRequest) safe->onSizeRequest (r == 104 ? -1 : r - 101); }
+        if (r >= 102 && r <= 104)        { if (safe->onSizeRequest) safe->onSizeRequest (r == 104 ? 0 : r - 101); }
+        else if (r >= 110 && r < 110 + kNumSizes)
+        {
+            WigaWindowSize::setDefaultIndex (JucePlugin_Name, r - 110);       // toutes les nouvelles fenêtres de ce plugin
+            if (safe->onSizeRequest) safe->onSizeRequest (-1);                // et cette fenêtre tout de suite (suit le défaut)
+        }
         else if (r == 1200) p.learnTarget.store (-1);
         else if (r == 1201) { p.resetMidiMap(); safe->setStatus ("MIDI reset to defaults"); }
         else if (r >= 1000 && r < 1100)
@@ -779,7 +794,9 @@ void PedalView::showContextMenu (int focus)
 FantomineAudioProcessorEditor::FantomineAudioProcessorEditor (FantomineAudioProcessor& p)
     : AudioProcessorEditor (&p), proc (p), pedal (p)
 {
-    const int savedIdx = juce::jlimit (-1, 2, proc.uiScaleIdx.load());   // lu avant que les limites ne redimensionnent
+    // lu avant que les limites ne redimensionnent : taille choisie pour cette instance (projet) si elle existe,
+    // sinon (-1) taille par défaut des nouvelles fenêtres (clic droit > Plugin size > Default size (new windows))
+    const int savedIdx = juce::jlimit (-1, 2, proc.uiScaleIdx.load());
 
     addAndMakeVisible (pedal);
     pedal.onSizeRequest = [this] (int idx) { setScaleIndex (idx); };
@@ -857,16 +874,18 @@ void FantomineAudioProcessorEditor::resized()
 int FantomineAudioProcessorEditor::getScaleIndex() const
 {
     const float s = (float) getWidth() / (float) ui::kRefW;
-    for (int i = 1; i < 3; ++i) if (std::abs (s - kScales[i]) < 0.02f) return i;
+    for (int i = 0; i < kNumSizes; ++i) if (std::abs (s - kScales[i]) < 0.02f) return i;
     return -1;
 }
 
+// idx 0..2 = taille choisie pour cette instance (sauvegardée avec le projet) ;
+// -1 = cette instance suit la taille par défaut des nouvelles fenêtres
 void FantomineAudioProcessorEditor::setScaleIndex (int idx)
 {
-    idx = juce::jlimit (-1, 2, idx);
-    if (idx == 0) idx = -1;
+    idx = juce::jlimit (-1, kNumSizes - 1, idx);
     proc.uiScaleIdx = idx;
-    const float s = idx < 0 ? ui::kDefaultScale : kScales[idx];
+    if (idx < 0) idx = WigaWindowSize::defaultIndex (JucePlugin_Name, kNumSizes);
+    const float s = kScales[idx];
     const int w = (int) std::lround (ui::kRefW * s);
     setSize (w, (int) std::lround ((double) w * ui::kH / ui::kW));
 }

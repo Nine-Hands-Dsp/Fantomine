@@ -105,7 +105,7 @@ public:
     void paintOverChildren (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void tick (float dt);
-    std::function<void (int)> onSizeRequest;     // -1 = défaut (67 %), 1 = 75 %, 2 = 100 %
+    std::function<void (int)> onSizeRequest;     // 0 = 60 %, 1 = 75 %, 2 = 100 %, -1 = taille par défaut des nouvelles fenêtres
     std::function<int()> getSizeIndex;
 
     // anti-gel v2 : fond à la taille réelle en pixels (refait par le timer de l'éditeur seulement)

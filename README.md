@@ -37,6 +37,12 @@ Afficheur : clic sur le nom du preset = menu (12 presets usine, presets
 utilisateur 1 à 9 à charger / enregistrer), flèches = preset précédent / suivant,
 pastille UP / DOWN / BIPOLAR = sens de la pédale, barre EXP = pédale à la souris.
 
+Taille : clic droit > *Plugin size* : 60 % / 75 % / 100 % pour cette fenêtre
+(taille sauvegardée avec le projet), et *Default size (new windows)* pour choisir
+la taille d'ouverture de toutes les nouvelles fenêtres de Fantomine (réglage
+enregistré dans `Studio Wiga/Fantomine/settings.xml` du dossier de données de
+l'utilisateur, comme Octopus). Jamais plus petite que 60 %, proportions bloquées.
+
 En bypass, toutes les lumières s'éteignent : néon du titre, traits des potards,
 écran et LED. Le titre scintille brièvement au rallumage.
 
@@ -97,3 +103,4 @@ Manuel complet (anglais puis français) : `docs/Fantomine_Manual_EN-FR_v1.3.0.pd
 - v1.3.1 : « Invert MIDI pedal direction » (clic droit) pour les pédales d'expression PITCH et OCTAVE, activé par défaut comme sur Crycat et Wharry
 - v1.3.2 : suivi de hauteur quand les notes précédentes sonnent encore (autre corde) : la voix suit la dernière note jouée au lieu de rester sur l'ancienne ou de tomber sur une note fantôme grave ; détection d'attaque insensible aux battements des cordes graves
 - v1.3.3 : retour au suivi de hauteur de la v1.3.1 (la v1.3.2 décrochait davantage en jeu réel) ; MIDI Learn et pédale d'expression inversée conservés
+- v1.4.0 : clic droit > *Plugin size* > *Default size (new windows)* : taille par défaut des nouvelles fenêtres au choix, comme dans Octopus
