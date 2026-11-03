@@ -64,12 +64,12 @@ public:
     static const char* getTargetName (int t);
     void assignCC (int target, int cc);          // target 0..4 ou kLearnFootswitch ; retire ce CC des autres cibles
     static float shapePedal (float e, bool bipolar);
-    std::array<std::atomic<int>, kNumTargets> targetCC { { { 11 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 } } };  // -1 = non assigné
+    std::array<std::atomic<int>, kNumTargets> targetCC { { { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 } } };  // -1 = non assigné
     std::atomic<int>  footswitchCC { -1 };     // -1 = non assigné (utiliser le MIDI learn du DAW)
     static constexpr int kLearnFootswitch = 100;
     std::atomic<int>  learnTarget  { -1 };     // -1 = rien, 0..8 = cible, kLearnFootswitch = footswitch
     std::atomic<int>  lastLearned  { -1 };     // dernière cible apprise (lue et remise à -1 par la fenêtre)
-    void resetMidiMap();                       // PITCH = CC 11, le reste non assigné
+    void resetMidiMap();                       // v1.4.1 : efface toutes les assignations (aucun CC par défaut)
 
     // octave pilotée en continu par une pédale (façon Whammy)
     std::atomic<bool>  whammyActive { false };

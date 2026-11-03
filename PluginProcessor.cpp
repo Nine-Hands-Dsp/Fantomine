@@ -46,8 +46,9 @@ void FantomineAudioProcessor::assignCC (int target, int cc)
 void FantomineAudioProcessor::resetMidiMap()
 {
     learnTarget.store (-1);
-    for (int t = 0; t < kNumTargets; ++t) targetCC[(size_t) t].store (t == kPitch ? 11 : -1);
+    for (int t = 0; t < kNumTargets; ++t) targetCC[(size_t) t].store (-1);
     footswitchCC.store (-1);
+    expressionValue.store (0.0f);
 }
 
 // Courbe de pédale : zone morte au talon (et au centre en BIPOLAR) et fin de course atteinte avant la butée.
@@ -521,10 +522,17 @@ void FantomineAudioProcessor::setStateInformation (const void* data, int sizeInB
         if (! state.hasType (apvts.state.getType())) return;
         learnTarget.store (-1);
         for (int t = 0; t < kNumTargets; ++t)      // cc5..cc8 absents des projets < 1.3 : non assignés
-            targetCC[(size_t) t].store (juce::jlimit (-1, 127, (int) state.getProperty ("cc" + juce::String (t), t == kPitch ? 11 : -1)));
+            targetCC[(size_t) t].store (juce::jlimit (-1, 127, (int) state.getProperty ("cc" + juce::String (t), -1)));
         if (state.hasProperty ("expressionCC"))                       // projets de la première version
             targetCC[kPitch].store ((int) state.getProperty ("expressionCC"));
         footswitchCC.store ((int) state.getProperty ("footswitchCC", -1));
+
+        // v1.4.1 : plus aucun CC par défaut. Un projet qui contient exactement l'ancienne table d'usine
+        // (PITCH = CC 11, rien d'autre) n'a jamais été modifié : on la vide. Sinon on garde tel quel.
+        bool factory = targetCC[kPitch].load() == 11 && footswitchCC.load() < 0;
+        for (int t = 0; t < kNumTargets; ++t)
+            if (t != kPitch && targetCC[(size_t) t].load() >= 0) factory = false;
+        if (factory) targetCC[kPitch].store (-1);
         uiScaleIdx.store ((int) state.getProperty ("uiScaleIdx", -1));
         currentPresetName = state.getProperty ("presetName", "Classic Theremin").toString();
         currentProgram = (int) state.getProperty ("program", 0);

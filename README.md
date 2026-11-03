@@ -60,11 +60,11 @@ Le suivi de note descend jusqu'à ~33 Hz (Do1) : une 7 cordes accordée en G
 
 ## Pédales d'expression MIDI (une par contrôle)
 
-Cinq cibles pilotables, chacune avec son propre CC (MIDI Learn) :
+Cinq cibles pilotables, chacune avec son propre CC (MIDI Learn). Aucun CC assigné par défaut : clic droit > MIDI > Learn.
 
 | Cible | Effet de la pédale |
 |---|---|
-| PITCH | courbe la hauteur (Range / sens UP, DOWN, BIPOLAR) — CC 11 par défaut |
+| PITCH | courbe la hauteur (Range / sens UP, DOWN, BIPOLAR) |
 | OCTAVE | façon Whammy : le levier glisse en continu. Plage au choix : talon -1 oct → centre 0 → pointe +1 oct (défaut), talon 0 → pointe +1 oct, ou talon 0 → pointe -1 oct |
 | VIBRATO, SPEED, BLEND | le potard suit la pédale |
 
@@ -104,3 +104,4 @@ Manuel complet (anglais puis français) : `docs/Fantomine_Manual_EN-FR_v1.3.0.pd
 - v1.3.2 : suivi de hauteur quand les notes précédentes sonnent encore (autre corde) : la voix suit la dernière note jouée au lieu de rester sur l'ancienne ou de tomber sur une note fantôme grave ; détection d'attaque insensible aux battements des cordes graves
 - v1.3.3 : retour au suivi de hauteur de la v1.3.1 (la v1.3.2 décrochait davantage en jeu réel) ; MIDI Learn et pédale d'expression inversée conservés
 - v1.4.0 : clic droit > *Plugin size* > *Default size (new windows)* : taille par défaut des nouvelles fenêtres au choix, comme dans Octopus
+- v1.4.1 : plus aucun CC MIDI assigné par défaut (tout passe par le MIDI Learn)

@@ -705,7 +705,7 @@ void PedalView::showContextMenu (int focus)
     }
     pedals.addSeparator();
     if (lt >= 0) pedals.addItem (1200, "Cancel MIDI learn");
-    pedals.addItem (1201, "Reset MIDI to defaults (PITCH CC 11, others none)");
+    pedals.addItem (1201, "Clear all MIDI assignments");
     pedals.addSeparator();
     const bool inv = proc.apvts.getRawParameterValue ("invert")->load() > 0.5f;
     pedals.addItem (50, "Invert pedal direction", true, inv);
@@ -763,7 +763,8 @@ void PedalView::showContextMenu (int focus)
             if (safe->onSizeRequest) safe->onSizeRequest (-1);                // et cette fenêtre tout de suite (suit le défaut)
         }
         else if (r == 1200) p.learnTarget.store (-1);
-        else if (r == 1201) { p.resetMidiMap(); safe->setStatus ("MIDI reset to defaults"); }
+        else if (r == 1201) { p.resetMidiMap(); p.apvts.getParameter ("expression")->setValueNotifyingHost (0.0f);
+                             safe->setStatus ("MIDI assignments cleared"); }
         else if (r >= 1000 && r < 1100)
         {
             const int t = (r - 1000) / 10, k = (r - 1000) % 10;
