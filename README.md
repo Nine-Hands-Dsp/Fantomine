@@ -1,4 +1,4 @@
-# Fantomine — Studio Wiga
+# Fantomine — NINE HANDS | DSP
 
 Pédale VST3 (Windows / macOS) qui transforme la guitare en voix de thérémine.
 Le plugin suit la note jouée, génère une voix fantôme qui glisse vers elle, et
@@ -40,7 +40,7 @@ pastille UP / DOWN / BIPOLAR = sens de la pédale, barre EXP = pédale à la sou
 Taille : clic droit > *Plugin size* : 60 % / 75 % / 100 % pour cette fenêtre
 (taille sauvegardée avec le projet), et *Default size (new windows)* pour choisir
 la taille d'ouverture de toutes les nouvelles fenêtres de Fantomine (réglage
-enregistré dans `Studio Wiga/Fantomine/settings.xml` du dossier de données de
+enregistré dans `NINE HANDS | DSP/Fantomine/settings.xml` du dossier de données de
 l'utilisateur, comme Octopus). Jamais plus petite que 60 %, proportions bloquées.
 
 En bypass, toutes les lumières s'éteignent : néon du titre, traits des potards,

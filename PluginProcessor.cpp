@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "NineHandsFolder.h"
 #include "PluginEditor.h"
 
 namespace
@@ -180,7 +181,7 @@ void FantomineAudioProcessor::setParam (const char* id, float plainValue)
         p->setValueNotifyingHost (p->convertTo0to1 (plainValue));
 }
 
-// Anti-gel v2 (Studio Wiga) : jamais d'appel à l'hôte (setValueNotifyingHost) ni d'allocation depuis le
+// Anti-gel v2 (NINE HANDS | DSP) : jamais d'appel à l'hôte (setValueNotifyingHost) ni d'allocation depuis le
 // thread audio. Le MIDI et le footswitch (qui peut être piloté en MIDI) mettent la valeur en file ;
 // le timer du processeur (thread message) la transmet au DAW et à la fenêtre.
 const char* FantomineAudioProcessor::queuedId (int i)
@@ -436,7 +437,7 @@ juce::File FantomineAudioProcessor::getUserPresetFile() const
    #if JUCE_MAC
     base = base.getChildFile ("Application Support");   // sur macOS, userApplicationDataDirectory = ~/Library
    #endif
-    return base.getChildFile ("Studio Wiga").getChildFile ("Fantomine").getChildFile ("UserPresets.xml");
+    return base.getChildFile (nhd::folderName()).getChildFile ("Fantomine").getChildFile ("UserPresets.xml");
 }
 
 void FantomineAudioProcessor::loadUserPresetsFromDisk()

@@ -1,4 +1,4 @@
-# FANTOMINE (Studio Wiga) - notice PDF bilingue (anglais puis francais), illustree avec le rendu reel du plugin.
+# FANTOMINE (NINE HANDS | DSP) - notice PDF bilingue (anglais puis francais), illustree avec le rendu reel du plugin.
 # Usage : python3 tools/manual.py <fichier PDF de sortie>
 # Images : tools/manual_assets/ (captures reprises de la notice v1.3.0, toujours justes : facade, ecran, ligne d'etat ;
 # aucune capture de menu). Polices : assets/fonts (Poppins + DejaVuSans pour les fleches).
@@ -83,7 +83,7 @@ T = {
  inst_t="2. Installation",
  inst=[("Windows", "Unzip the <b>Fantomine-VST3-Windows</b> artifact and copy the whole <b>Fantomine.vst3</b> folder into <b>C:\\Program Files\\Common Files\\VST3\\</b>. No Visual C++ redistributable is needed."),
        ("macOS", "Unzip <b>Fantomine-VST3-macOS</b> (universal: Apple Silicon and Intel) and copy <b>Fantomine.vst3</b> into <b>~/Library/Audio/Plug-Ins/VST3/</b>. The plugin is signed ad hoc; if macOS refuses to load it, run in Terminal: <b>xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Fantomine.vst3</b>"),
-       ("Reaper", "Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Fantomine is listed as <b>Fantomine</b> by <b>Studio Wiga</b> (Fx / Pitch Shift).")],
+       ("Reaper", "Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Fantomine is listed as <b>Fantomine</b> by <b>NINE HANDS | DSP</b> (Fx / Pitch Shift).")],
  reaper_h="Getting the expression pedal into Reaper",
  reaper=["Insert Fantomine on your guitar track, before your amp simulator (Two Notes Genome, for example).",
          "Create a track called <b>Pedals</b>: input <b>MIDI &gt; your controller &gt; All channels</b>, armed, record monitoring on.",
@@ -151,8 +151,8 @@ T = {
           "Even with a standard 7-bit pedal, pitch and whammy are smoothed: no steps. Fantomine does not use Program Change.",
           "Everything is also an automatable DAW parameter: Glide, Range, Tone, Vibrato, Speed, Blend, Octave, Octave Whammy, Whammy Range, Pedal Mode, Expression, MIDI Pedal Invert, Bypass, Hold (Reaper: Param &gt; Learn in the FX window)."],
  win_t="7. Window",
- win=["Fantomine opens at <b>60 %</b>, the same default size as Ring Think and the other Studio Wiga pedals, and the window can never be made smaller than 60 %. Right-click &gt; <b>Plugin size</b>: <b>60 %</b>, <b>75 %</b> or <b>100 %</b> resizes this window, with <b>(default)</b> shown next to the default size you chose.",
-      "At the bottom of the same menu, <b>Default size (new windows)</b> chooses the size at which every new Fantomine window opens (a setting shared by all instances and saved on the computer, in Studio Wiga/Fantomine/settings.xml of your user data folder); the open window takes that size at once.",
+ win=["Fantomine opens at <b>60 %</b>, the same default size as Ring Think and the other NINE HANDS | DSP pedals, and the window can never be made smaller than 60 %. Right-click &gt; <b>Plugin size</b>: <b>60 %</b>, <b>75 %</b> or <b>100 %</b> resizes this window, with <b>(default)</b> shown next to the default size you chose.",
+      "At the bottom of the same menu, <b>Default size (new windows)</b> chooses the size at which every new Fantomine window opens (a setting shared by all instances and saved on the computer, in NINE HANDS | DSP/Fantomine/settings.xml of your user data folder); the open window takes that size at once.",
       "A size chosen in Plugin size for one instance is saved with the project and stays the priority for that instance: it reopens at that size whatever the default. An instance whose size was never chosen (or that you just set with Default size) opens at the default size. You can also drag the bottom-right corner to enlarge the window up to about 150 %; the proportions stay locked, and the next time it opens the window takes back the size chosen in the menu."],
  pre_t="8. Presets",
  pre="12 factory presets and 9 user slots. Click the preset name to open the menu, or use the ◀ ▶ arrows to step through the factory presets; they also appear in the DAW's program list. A preset stores the six knobs, the octave and the pedal mode (MIDI assignments stay with the project).",
@@ -165,7 +165,7 @@ T = {
        "Tight tracking, reedy tone: follows fast lines.", "Guitar and voice half-and-half, Ondes Martenot colour.",
        "Very slow glide, voice only: haunted house.", "Instant glide, no vibrato: the most precise tracking.",
        "Full TONE: nasal, oboe-like.", "Built for HOLD: freeze a low note, play it with the pedal."],
- user="<b>User presets</b>: preset menu &gt; <b>Save to slot</b> &gt; 1 to 9 (occupied slots marked “(replace)”); <b>Load user preset</b> (empty slots greyed). Shared by every project, stored in %APPDATA%\\Studio Wiga\\Fantomine\\UserPresets.xml (Windows) or ~/Library/Application Support/Studio Wiga/Fantomine/UserPresets.xml (macOS).",
+ user="<b>User presets</b>: preset menu &gt; <b>Save to slot</b> &gt; 1 to 9 (occupied slots marked “(replace)”); <b>Load user preset</b> (empty slots greyed). Shared by every project, stored in %APPDATA%\\NINE HANDS | DSP\\Fantomine\\UserPresets.xml (Windows) or ~/Library/Application Support/NINE HANDS | DSP/Fantomine/UserPresets.xml (macOS).",
  tips_t="9. Tips",
  tips=["In Reaper, put Fantomine <b>before your amp simulator</b> (Two Notes Genome or another): the ghost voice goes through the amp and cab like your guitar, warm and vintage. On a clean channel with BLEND on VOICE you get the purest theremin; a long plate reverb or a tape echo after it is the classic sound.",
        "<b>Tracking</b>: neck pickup, tone slightly rolled off, clean input (put drive after it), one note at a time. A new note is taken from a real attack, a nearby bend / slide / hammer-on, or a stable pitch while the string rings loud; hum and dying tails never replace the note you played.",
@@ -182,7 +182,7 @@ T = {
      ["A preset name ends with *", "A knob moved since loading: save to a user slot to keep it."],
      ["macOS will not load it", "Remove the quarantine flag (section 2), then rescan."]],
  tech_t="10. Technical specifications",
- tech=[["Format", "VST3, Fx / Pitch Shift, MIDI input; Windows 10/11 x64, macOS 10.13+ universal; listed as “Fantomine” by “Studio Wiga”"],
+ tech=[["Format", "VST3, Fx / Pitch Shift, MIDI input; Windows 10/11 x64, macOS 10.13+ universal; listed as “Fantomine” by “NINE HANDS | DSP”"],
        ["Channels", "Mono or stereo in (summed), mono or stereo out"],
        ["Latency", "None on the dry guitar; the voice reacts within a few tens of milliseconds"],
        ["Tracking", "Monophonic, about 33 Hz (C1) to 1.4 kHz, analysis every 5 ms"],
@@ -204,7 +204,7 @@ T = {
  inst_t="2. Installation",
  inst=[("Windows", "Décompressez l'artefact <b>Fantomine-VST3-Windows</b> et copiez tout le dossier <b>Fantomine.vst3</b> dans <b>C:\\Program Files\\Common Files\\VST3\\</b>. Aucun redistribuable Visual C++ n'est nécessaire."),
        ("macOS", "Décompressez <b>Fantomine-VST3-macOS</b> (universel : Apple Silicon et Intel) et copiez <b>Fantomine.vst3</b> dans <b>~/Library/Audio/Plug-Ins/VST3/</b>. Le plugin est signé « ad hoc » ; si macOS refuse de le charger, tapez dans le Terminal : <b>xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Fantomine.vst3</b>"),
-       ("Reaper", "Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Fantomine apparaît sous le nom <b>Fantomine</b>, fabricant <b>Studio Wiga</b> (Fx / Pitch Shift).")],
+       ("Reaper", "Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Fantomine apparaît sous le nom <b>Fantomine</b>, fabricant <b>NINE HANDS | DSP</b> (Fx / Pitch Shift).")],
  reaper_h="Faire entrer la pédale d'expression dans Reaper",
  reaper=["Insérez Fantomine sur la piste guitare, avant le simulateur d'ampli (Two Notes Genome, par exemple).",
          "Créez une piste <b>Pédales</b> : entrée <b>MIDI &gt; votre contrôleur &gt; All channels</b>, armée, monitoring activé.",
@@ -272,8 +272,8 @@ T = {
           "Même avec une pédale 7 bits standard, hauteur et whammy sont lissées : aucun palier. Fantomine n'utilise pas le Program Change.",
           "Tout est aussi un paramètre automatisable du DAW : Glide, Range, Tone, Vibrato, Speed, Blend, Octave, Octave Whammy, Whammy Range, Pedal Mode, Expression, MIDI Pedal Invert, Bypass, Hold (Reaper : Param &gt; Learn dans la fenêtre FX)."],
  win_t="7. Fenêtre",
- win=["Fantomine s'ouvre à <b>60 %</b>, la même taille par défaut que Ring Think et les autres pédales Studio Wiga, et la fenêtre ne peut jamais être plus petite que 60 %. Clic droit &gt; <b>Plugin size</b> : <b>60 %</b>, <b>75 %</b> ou <b>100 %</b> redimensionne cette fenêtre, et <b>(default)</b> est indiqué à côté de la taille par défaut choisie.",
-      "En bas du même menu, <b>Default size (new windows)</b> choisit la taille d'ouverture de toutes les nouvelles fenêtres de Fantomine (réglage commun à toutes les instances, enregistré sur l'ordinateur, dans Studio Wiga/Fantomine/settings.xml du dossier de données de l'utilisateur) ; la fenêtre ouverte prend aussitôt cette taille.",
+ win=["Fantomine s'ouvre à <b>60 %</b>, la même taille par défaut que Ring Think et les autres pédales NINE HANDS | DSP, et la fenêtre ne peut jamais être plus petite que 60 %. Clic droit &gt; <b>Plugin size</b> : <b>60 %</b>, <b>75 %</b> ou <b>100 %</b> redimensionne cette fenêtre, et <b>(default)</b> est indiqué à côté de la taille par défaut choisie.",
+      "En bas du même menu, <b>Default size (new windows)</b> choisit la taille d'ouverture de toutes les nouvelles fenêtres de Fantomine (réglage commun à toutes les instances, enregistré sur l'ordinateur, dans NINE HANDS | DSP/Fantomine/settings.xml du dossier de données de l'utilisateur) ; la fenêtre ouverte prend aussitôt cette taille.",
       "Une taille choisie dans Plugin size pour une instance est sauvegardée avec le projet et reste prioritaire pour cette instance : elle se rouvre à cette taille, quelle que soit la taille par défaut. Une instance dont la taille n'a jamais été choisie (ou que vous venez de régler par Default size) s'ouvre à la taille par défaut. Vous pouvez aussi tirer le coin inférieur droit pour agrandir la fenêtre jusqu'à environ 150 % ; les proportions restent verrouillées, et à l'ouverture suivante la fenêtre reprend la taille choisie dans le menu."],
  pre_t="8. Presets",
  pre="12 presets usine et 9 emplacements utilisateur. Cliquez sur le nom du preset pour ouvrir le menu, ou utilisez les flèches ◀ ▶ pour parcourir les presets usine ; ils apparaissent aussi dans la liste de programmes du DAW. Un preset mémorise les six potards, l'octave et le mode de pédale (les assignations MIDI restent dans le projet).",
@@ -286,7 +286,7 @@ T = {
        "Suivi serré, timbre d'anche : suit les traits rapides.", "Guitare et voix à parts égales, couleur Ondes Martenot.",
        "Glide très lent, voix seule : maison hantée.", "Glide instantané, sans vibrato : le suivi le plus précis.",
        "TONE à fond : nasal, façon hautbois.", "Pensé pour HOLD : figer une note grave et la jouer à la pédale."],
- user="<b>Presets utilisateur</b> : menu des presets &gt; <b>Save to slot</b> &gt; 1 à 9 (emplacements occupés marqués « (replace) ») ; <b>Load user preset</b> (emplacements vides grisés). Partagés par tous les projets, stockés dans %APPDATA%\\Studio Wiga\\Fantomine\\UserPresets.xml (Windows) ou ~/Library/Application Support/Studio Wiga/Fantomine/UserPresets.xml (macOS).",
+ user="<b>Presets utilisateur</b> : menu des presets &gt; <b>Save to slot</b> &gt; 1 à 9 (emplacements occupés marqués « (replace) ») ; <b>Load user preset</b> (emplacements vides grisés). Partagés par tous les projets, stockés dans %APPDATA%\\NINE HANDS | DSP\\Fantomine\\UserPresets.xml (Windows) ou ~/Library/Application Support/NINE HANDS | DSP/Fantomine/UserPresets.xml (macOS).",
  tips_t="9. Conseils d'utilisation",
  tips=["Dans Reaper, placez Fantomine <b>avant le simulateur d'ampli</b> (Two Notes Genome ou autre) : la voix fantôme passe par l'ampli et le baffle comme la guitare, chaude et vintage. Sur un canal clair avec BLEND sur VOICE, vous obtenez le thérémine le plus pur ; une longue réverbe à plaque ou un écho à bande après, c'est le son classique.",
        "<b>Suivi de note</b> : micro manche, tonalité un peu fermée, entrée propre (drive après), une note à la fois. Une nouvelle note est prise sur une vraie attaque, un bend / slide / hammer-on proche, ou une hauteur stable tant que la corde sonne fort ; ronflement et fin de note ne remplacent jamais la note jouée.",
@@ -303,7 +303,7 @@ T = {
      ["Le nom du preset finit par *", "Un potard a bougé depuis le chargement : enregistrez dans un emplacement utilisateur."],
      ["macOS ne charge pas le plugin", "Retirez l'attribut de quarantaine (section 2), puis rescannez."]],
  tech_t="10. Caractéristiques techniques",
- tech=[["Format", "VST3, Fx / Pitch Shift, entrée MIDI ; Windows 10/11 x64, macOS 10.13+ universel ; listé « Fantomine », fabricant « Studio Wiga »"],
+ tech=[["Format", "VST3, Fx / Pitch Shift, entrée MIDI ; Windows 10/11 x64, macOS 10.13+ universel ; listé « Fantomine », fabricant « NINE HANDS | DSP »"],
        ["Canaux", "Entrée mono ou stéréo (sommée), sortie mono ou stéréo"],
        ["Latence", "Aucune sur la guitare directe ; la voix réagit en quelques dizaines de millisecondes"],
        ["Suivi de note", "Monophonique, d'environ 33 Hz (Do1) à 1,4 kHz, analyse toutes les 5 ms"],
@@ -396,7 +396,7 @@ def deco(c, doc):
     c.saveState()
     c.setFillColor(ACC); c.rect(0, A4[1] - 4.5 * mm, A4[0], 4.5 * mm, stroke=0, fill=1)
     c.setFont("Pop", 7.5); c.setFillColor(GREY)
-    c.drawString(18 * mm, 10 * mm, NAME + " (Studio Wiga) · v" + VERSION)
+    c.drawString(18 * mm, 10 * mm, NAME + " (NINE HANDS | DSP) · v" + VERSION)
     c.drawRightString(A4[0] - 18 * mm, 10 * mm, str(doc.page))
     c.restoreState()
 
@@ -405,7 +405,7 @@ def cover_bg(c, doc):
     c.setFillColor(ACC); c.rect(0, A4[1] - 3 * mm, A4[0], 3 * mm, stroke=0, fill=1); c.restoreState()
 
 doc = BaseDocTemplate(OUT, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=18 * mm,
-                      title="Fantomine - User manual / Notice v" + VERSION, author="Studio Wiga")
+                      title="Fantomine - User manual / Notice v" + VERSION, author="NINE HANDS | DSP")
 doc.addPageTemplates([PageTemplate(id="cover", frames=[Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="fc")], onPage=cover_bg),
                       PageTemplate(id="p", frames=[Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="f")], onPage=deco)])
 en = section("en"); fr = section("fr")

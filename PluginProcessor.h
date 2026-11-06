@@ -123,7 +123,7 @@ private:
     std::atomic<bool> longPressFired { false };
     void setParam (const char* id, float plainValue);
 
-    // Anti-gel v2 (Studio Wiga) : valeurs demandées depuis le thread audio (MIDI, footswitch MIDI),
+    // Anti-gel v2 (NINE HANDS | DSP) : valeurs demandées depuis le thread audio (MIDI, footswitch MIDI),
     // transmises à l'hôte par le timer du processeur (60 Hz, thread message)
     void timerCallback() override;
     static constexpr int kNumQueued = 10;     // cible t (1..8) -> file t + 1

@@ -1,4 +1,4 @@
-// Fantomine (Studio Wiga) — moteur DSP de la voix thérémine.
+// Fantomine (NINE HANDS | DSP) — moteur DSP de la voix thérémine.
 // Indépendant de JUCE pour pouvoir être testé hors ligne.
 //
 // Chaîne : entrée guitare mono -> passe-haut -> passe-bas + décimation ->

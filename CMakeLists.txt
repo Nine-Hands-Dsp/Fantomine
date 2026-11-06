@@ -22,7 +22,7 @@ else()
 endif()
 
 juce_add_plugin(Fantomine
-    COMPANY_NAME "Studio Wiga"
+    COMPANY_NAME "NINE HANDS | DSP"
     COMPANY_WEBSITE ""
     PLUGIN_MANUFACTURER_CODE Swga
     PLUGIN_CODE Fntm
