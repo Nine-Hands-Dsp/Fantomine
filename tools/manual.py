@@ -16,8 +16,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs", "Fantomine_Manual_EN-FR_v1.4.1.pdf")
-VERSION = "1.4.1"
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs", "Fantomine_Manual_EN-FR_v1.4.2.pdf")
+VERSION = "1.4.2"
 NAME = "Fantomine"
 FONTS = os.path.join(ROOT, "assets", "fonts")
 A = os.path.join(ROOT, "tools", "manual_assets")
@@ -85,7 +85,7 @@ T = {
        ("macOS", "Unzip <b>Fantomine-VST3-macOS</b> (universal: Apple Silicon and Intel) and copy <b>Fantomine.vst3</b> into <b>~/Library/Audio/Plug-Ins/VST3/</b>. The plugin is signed ad hoc; if macOS refuses to load it, run in Terminal: <b>xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Fantomine.vst3</b>"),
        ("Reaper", "Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Fantomine is listed as <b>Fantomine</b> by <b>NINE HANDS | DSP</b> (Fx / Pitch Shift).")],
  reaper_h="Getting the expression pedal into Reaper",
- reaper=["Insert Fantomine on your guitar track, before your amp simulator (Two Notes Genome, for example).",
+ reaper=["Insert Fantomine on your guitar track, before your amp simulator (Ampire, for example).",
          "Create a track called <b>Pedals</b>: input <b>MIDI &gt; your controller &gt; All channels</b>, armed, record monitoring on.",
          "In the routing of the Pedals track, add a send to the guitar track with <b>Audio: None</b> and <b>MIDI: All</b>.",
          "Move your pedal: the small MIDI dot on Fantomine's screen blinks. No control is assigned by default: give the pedal to PITCH (or to any other control) with MIDI Learn (section 6)."],
@@ -167,7 +167,7 @@ T = {
        "Full TONE: nasal, oboe-like.", "Built for HOLD: freeze a low note, play it with the pedal."],
  user="<b>User presets</b>: preset menu &gt; <b>Save to slot</b> &gt; 1 to 9 (occupied slots marked “(replace)”); <b>Load user preset</b> (empty slots greyed). Shared by every project, stored in %APPDATA%\\NINE HANDS | DSP\\Fantomine\\UserPresets.xml (Windows) or ~/Library/Application Support/NINE HANDS | DSP/Fantomine/UserPresets.xml (macOS).",
  tips_t="9. Tips",
- tips=["In Reaper, put Fantomine <b>before your amp simulator</b> (Two Notes Genome or another): the ghost voice goes through the amp and cab like your guitar, warm and vintage. On a clean channel with BLEND on VOICE you get the purest theremin; a long plate reverb or a tape echo after it is the classic sound.",
+ tips=["In Reaper, put Fantomine <b>before your amp simulator</b> (Ampire or another): the ghost voice goes through the amp and cab like your guitar, warm and vintage. On a clean channel with BLEND on VOICE you get the purest theremin; a long plate reverb or a tape echo after it is the classic sound.",
        "<b>Tracking</b>: neck pickup, tone slightly rolled off, clean input (put drive after it), one note at a time. A new note is taken from a real attack, a nearby bend / slide / hammer-on, or a stable pitch while the string rings loud; hum and dying tails never replace the note you played.",
        "<b>7-string and low tunings</b>: the tracker follows down to about 33 Hz, so a 7-string tuned to G (G1, 49 Hz) is tracked accurately. On the lowest notes the voice takes a little longer to lock: set OCTAVE +1 to sing in the real theremin register, or use a little more GLIDE so the slide hides the detection time.",
        "<b>Pedal melodies</b>: hold a note (or HOLD), RANGE ±12 in BIPOLAR, play the melody with your foot while watching the note on the screen. BLEND on a pedal = volume pedal for the ghost.",
@@ -206,7 +206,7 @@ T = {
        ("macOS", "Décompressez <b>Fantomine-VST3-macOS</b> (universel : Apple Silicon et Intel) et copiez <b>Fantomine.vst3</b> dans <b>~/Library/Audio/Plug-Ins/VST3/</b>. Le plugin est signé « ad hoc » ; si macOS refuse de le charger, tapez dans le Terminal : <b>xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Fantomine.vst3</b>"),
        ("Reaper", "Options &gt; Preferences &gt; Plug-ins &gt; VST &gt; <b>Re-scan</b>. Fantomine apparaît sous le nom <b>Fantomine</b>, fabricant <b>NINE HANDS | DSP</b> (Fx / Pitch Shift).")],
  reaper_h="Faire entrer la pédale d'expression dans Reaper",
- reaper=["Insérez Fantomine sur la piste guitare, avant le simulateur d'ampli (Two Notes Genome, par exemple).",
+ reaper=["Insérez Fantomine sur la piste guitare, avant le simulateur d'ampli (Ampire, par exemple).",
          "Créez une piste <b>Pédales</b> : entrée <b>MIDI &gt; votre contrôleur &gt; All channels</b>, armée, monitoring activé.",
          "Dans le routage de la piste Pédales, ajoutez un envoi vers la piste guitare avec <b>Audio : None</b> et <b>MIDI : All</b>.",
          "Bougez la pédale : le petit point MIDI de l'écran clignote. Aucune commande n'est assignée par défaut : confiez la pédale à PITCH (ou à n'importe quelle autre commande) par MIDI Learn (section 6)."],
@@ -288,7 +288,7 @@ T = {
        "TONE à fond : nasal, façon hautbois.", "Pensé pour HOLD : figer une note grave et la jouer à la pédale."],
  user="<b>Presets utilisateur</b> : menu des presets &gt; <b>Save to slot</b> &gt; 1 à 9 (emplacements occupés marqués « (replace) ») ; <b>Load user preset</b> (emplacements vides grisés). Partagés par tous les projets, stockés dans %APPDATA%\\NINE HANDS | DSP\\Fantomine\\UserPresets.xml (Windows) ou ~/Library/Application Support/NINE HANDS | DSP/Fantomine/UserPresets.xml (macOS).",
  tips_t="9. Conseils d'utilisation",
- tips=["Dans Reaper, placez Fantomine <b>avant le simulateur d'ampli</b> (Two Notes Genome ou autre) : la voix fantôme passe par l'ampli et le baffle comme la guitare, chaude et vintage. Sur un canal clair avec BLEND sur VOICE, vous obtenez le thérémine le plus pur ; une longue réverbe à plaque ou un écho à bande après, c'est le son classique.",
+ tips=["Dans Reaper, placez Fantomine <b>avant le simulateur d'ampli</b> (Ampire ou autre) : la voix fantôme passe par l'ampli et le baffle comme la guitare, chaude et vintage. Sur un canal clair avec BLEND sur VOICE, vous obtenez le thérémine le plus pur ; une longue réverbe à plaque ou un écho à bande après, c'est le son classique.",
        "<b>Suivi de note</b> : micro manche, tonalité un peu fermée, entrée propre (drive après), une note à la fois. Une nouvelle note est prise sur une vraie attaque, un bend / slide / hammer-on proche, ou une hauteur stable tant que la corde sonne fort ; ronflement et fin de note ne remplacent jamais la note jouée.",
        "<b>7 cordes et accordages graves</b> : le suivi descend jusqu'à environ 33 Hz, une 7 cordes accordée en G (Sol1, 49 Hz) est suivie avec précision. Sur les notes les plus graves la voix met un peu plus de temps à accrocher : mettez OCTAVE sur +1 pour chanter dans le vrai registre du thérémine, ou un peu plus de GLIDE pour masquer le temps de détection.",
        "<b>Mélodies à la pédale</b> : tenez une note (ou HOLD), RANGE ±12 en BIPOLAR, jouez la mélodie au pied en regardant la note à l'écran. BLEND sur une pédale = pédale de volume du fantôme.",

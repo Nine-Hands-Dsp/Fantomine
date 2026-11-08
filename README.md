@@ -83,7 +83,7 @@ footswitch MIDI (MIDI Learn), sens de la pédale de hauteur.
 
 ## Pédale d'expression dans Reaper
 
-1. Fantomine sur la piste guitare (avant Genome).
+1. Fantomine sur la piste guitare (avant Ampire / Impulse).
 2. Nouvelle piste « Pédales » : entrée MIDI = ton contrôleur (All channels), armée, monitoring activé.
 3. Envoi de la piste Pédales vers la piste guitare : Audio = None, MIDI = All.
 4. Le point MIDI de l'écran clignote quand la pédale bouge.
