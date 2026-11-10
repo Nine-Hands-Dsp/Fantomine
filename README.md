@@ -8,6 +8,8 @@ la pédale d'expression MIDI courbe la hauteur en continu.
   <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest/download/Fantomine-VST3-Windows.zip"><img alt="Télécharger pour Windows" src="https://img.shields.io/badge/%E2%AC%87%20T%C3%A9l%C3%A9charger-Windows-0078D6?style=for-the-badge"></a>
   <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest/download/Fantomine-VST3-macOS.zip"><img alt="Télécharger pour macOS" src="https://img.shields.io/badge/%E2%AC%87%20T%C3%A9l%C3%A9charger-macOS-111111?style=for-the-badge&logo=apple&logoColor=white"></a>
   <br>
+  <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest/download/Fantomine-Notice.pdf"><img alt="Télécharger la notice (PDF)" src="https://img.shields.io/badge/%F0%9F%93%96%20Notice-PDF-919496?style=for-the-badge"></a>
+  <br>
   <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest"><img alt="Dernière version" src="https://img.shields.io/github/v/release/Nine-Hands-Dsp/Fantomine?label=derni%C3%A8re%20version&color=919496"></a>
 </p>
 
