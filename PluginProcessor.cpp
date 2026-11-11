@@ -509,6 +509,7 @@ void FantomineAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("whammyActive", whammyActive.load(), nullptr);
     state.setProperty ("footswitchCC", footswitchCC.load(), nullptr);
     state.setProperty ("uiScaleIdx", uiScaleIdx.load(), nullptr);
+    state.setProperty ("uiHeight", uiHeight.load(), nullptr);
     state.setProperty ("presetName", currentPresetName, nullptr);
     state.setProperty ("program", currentProgram, nullptr);
     if (auto xml = state.createXml())
@@ -535,6 +536,7 @@ void FantomineAudioProcessor::setStateInformation (const void* data, int sizeInB
             if (t != kPitch && targetCC[(size_t) t].load() >= 0) factory = false;
         if (factory) targetCC[kPitch].store (-1);
         uiScaleIdx.store ((int) state.getProperty ("uiScaleIdx", -1));
+        uiHeight.store ((int) state.getProperty ("uiHeight", -1));
         currentPresetName = state.getProperty ("presetName", "Classic Theremin").toString();
         currentProgram = (int) state.getProperty ("program", 0);
         const bool wa = (bool) state.getProperty ("whammyActive", false);

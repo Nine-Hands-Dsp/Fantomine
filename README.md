@@ -1,116 +1,58 @@
 # Fantomine — NINE HANDS | DSP
 
-Pédale VST3 (Windows / macOS) qui transforme la guitare en voix de thérémine.
-Le plugin suit la note jouée, génère une voix fantôme qui glisse vers elle, et
-la pédale d'expression MIDI courbe la hauteur en continu.
+Pédale VST3 (Windows / macOS) qui transforme la guitare en **voix de thérémine** :
+le plugin suit la note jouée, une voix fantôme glisse vers elle, et une pédale
+d'expression MIDI courbe la hauteur en continu, comme une main près de l'antenne.
 
 <p align="center">
   <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest/download/Fantomine-VST3-Windows.zip"><img alt="Télécharger pour Windows" src="https://img.shields.io/badge/%E2%AC%87%20T%C3%A9l%C3%A9charger-Windows-0078D6?style=for-the-badge"></a>
   <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest/download/Fantomine-VST3-macOS.zip"><img alt="Télécharger pour macOS" src="https://img.shields.io/badge/%E2%AC%87%20T%C3%A9l%C3%A9charger-macOS-111111?style=for-the-badge&logo=apple&logoColor=white"></a>
   <br>
-  <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest/download/Fantomine-Notice.pdf"><img alt="Télécharger la notice (PDF)" src="https://img.shields.io/badge/%F0%9F%93%96%20Notice-PDF-919496?style=for-the-badge"></a>
+  <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest/download/Fantomine-Notice.pdf"><img alt="Télécharger la notice (PDF)" src="https://img.shields.io/badge/%F0%9F%93%96%20Notice-PDF-7EF0D6?style=for-the-badge"></a>
   <br>
-  <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest"><img alt="Dernière version" src="https://img.shields.io/github/v/release/Nine-Hands-Dsp/Fantomine?label=derni%C3%A8re%20version&color=919496"></a>
+  <a href="https://github.com/Nine-Hands-Dsp/Fantomine/releases/latest"><img alt="Dernière version" src="https://img.shields.io/github/v/release/Nine-Hands-Dsp/Fantomine?label=derni%C3%A8re%20version&color=7EF0D6"></a>
 </p>
 
-## Compilation
+Notice complète en français : [docs/Fantomine_Notice_FR_v2.0.0.pdf](docs/Fantomine_Notice_FR_v2.0.0.pdf)
 
-Pousser tous les fichiers à la racine du dépôt GitHub. Le workflow
-`.github/workflows/build.yml` compile Windows et macOS ; les VST3 sont dans
-l'onglet **Actions → Artifacts** (`Fantomine-VST3-Windows`, `Fantomine-VST3-macOS`).
+<p align="center"><img src="design/screens/fantomine_60.png" width="646" alt="Fantomine"></p>
 
-- Windows : copier `Fantomine.vst3` dans `C:\Program Files\Common Files\VST3\`
-- macOS : dézipper dans `~/Library/Audio/Plug-Ins/VST3/`, puis si besoin
-  `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Fantomine.vst3`
+## Installation
 
-## Fichiers du visuel
-
-`background.png` (pédale éteinte, 1240 × 928), `title_on.png` (néon allumé),
-`led_on.png`, `oct_handle.png`, polices `Inter-SemiBold.otf` / `Inter-Regular.otf`
-(licence SIL OFL), tous à la racine du dépôt.
+- **Windows** : copier `Fantomine.vst3` dans `C:\Program Files\Common Files\VST3\`
+- **macOS** (universel) : copier `Fantomine.vst3` dans `~/Library/Audio/Plug-Ins/VST3/`, puis
+  `xattr -cr ~/Library/Audio/Plug-Ins/VST3/Fantomine.vst3`
+- **Reaper** : Préférences > Plug-ins > VST > Re-scan. Nom affiché : **Fantomine (NINE HANDS | DSP)**.
 
 ## Contrôles
 
 | Contrôle | Rôle |
 |---|---|
 | GLIDE | vitesse du glissando entre les notes (2 ms → 700 ms) |
-| RANGE | amplitude de la pédale, ±1 à ±24 demi-tons |
+| RANGE | amplitude de la pédale de hauteur, ±1 à ±24 demi-tons |
 | TONE | timbre : sinus pur → anche nasale (formant « voix ») |
-| VIBRATO | profondeur du vibrato humanisé (démarre en douceur sur chaque note) |
+| VIBRATO | profondeur du vibrato humanisé |
 | SPEED | vitesse du vibrato, 3 à 9 Hz |
 | BLEND | dosage guitare / voix (puissance constante) |
-| OCTAVE | voix à -1, 0 ou +1 octave (ou en continu par pédale, façon Whammy) |
-| Footswitch | clic court = bypass · appui long (0,6 s) = HOLD (fige note et volume ; clic court pour relâcher) |
+| OCTAVE | voix à -1, 0 ou +1 octave, ou en continu par pédale (façon Whammy) |
+| Footswitch | clic = bypass · appui long (0,6 s) = HOLD (fige la note) |
+| Écran | sens de la pédale (UP / DOWN / BIPOLAR, clic pour changer), barre EXP (pédale à la souris), voix en direct, note jouée |
+| Barre de presets | ◀ ▶ = preset précédent / suivant, clic sur le nom = menu ; la ligne d'état y affiche les valeurs pendant les réglages |
 
-Afficheur : clic sur le nom du preset = menu (12 presets usine, presets
-utilisateur 1 à 9 à charger / enregistrer), flèches = preset précédent / suivant,
-pastille UP / DOWN / BIPOLAR = sens de la pédale, barre EXP = pédale à la souris.
-
-Taille : clic droit > *Plugin size* : 60 % / 75 % / 100 % pour cette fenêtre
-(taille sauvegardée avec le projet), et *Default size (new windows)* pour choisir
-la taille d'ouverture de toutes les nouvelles fenêtres de Fantomine (réglage
-enregistré dans `NINE HANDS | DSP/Fantomine/settings.xml` du dossier de données de
-l'utilisateur, comme Octopus). Jamais plus petite que 60 %, proportions bloquées.
-
-En bypass, toutes les lumières s'éteignent : néon du titre, traits des potards,
-écran et LED. Le titre scintille brièvement au rallumage.
-
-## Suivi de note
-
-Une nouvelle note n'est acceptée que sur une attaque franche (médiator), un bend / slide /
-hammer-on proche, ou une hauteur stable pendant que la corde sonne encore fort. Le ronflement
-secteur (50/60 Hz) et la fin de note qui s'éteint ne peuvent plus remplacer la note jouée ;
-la voix s'éteint quand la note retombe dans le bruit de fond.
-
-## Guitares 7 cordes
-
-Le suivi de note descend jusqu'à ~33 Hz (Do1) : une 7 cordes accordée en G
-(Sol1, 49 Hz) passe sans problème, et on peut encore descendre d'environ 4 tons.
-
-## Pédales d'expression MIDI (une par contrôle)
-
-Cinq cibles pilotables, chacune avec son propre CC (MIDI Learn). Aucun CC assigné par défaut : clic droit > MIDI > Learn.
-
-| Cible | Effet de la pédale |
-|---|---|
-| PITCH | courbe la hauteur (Range / sens UP, DOWN, BIPOLAR) |
-| OCTAVE | façon Whammy : le levier glisse en continu. Plage au choix : talon -1 oct → centre 0 → pointe +1 oct (défaut), talon 0 → pointe +1 oct, ou talon 0 → pointe -1 oct |
-| VIBRATO, SPEED, BLEND | le potard suit la pédale |
-
-Clic droit sur VIBRATO, SPEED, BLEND, le levier OCTAVE ou l'écran : « MIDI Learn »
-en tête du menu, puis bouger la pédale. Une pédale = une fonction : apprendre un CC
-le retire des autres cibles (évite qu'une pédale de whammy courbe aussi la hauteur).
-Zone morte de 4 % au talon (et au centre en BIPOLAR) : la voix reste juste même si la
-pédale n'envoie pas 0 pile au repos. Toucher le levier OCTAVE à la souris le remet sur ses 3 positions fixes.
-Les paramètres `Octave Whammy` et `Whammy Range` sont aussi automatisables
-depuis Reaper.
-
-Clic droit sur la pédale : taille de la fenêtre (comme Ring Think : 60 % par défaut,
-aussi taille minimale ; 75 % ; 100 %),
-pédales d'expression MIDI (CC 14 bits accepté pour PITCH), plage de la whammy,
-footswitch MIDI (MIDI Learn), sens de la pédale de hauteur.
-
-## Pédale d'expression dans Reaper
-
-1. Fantomine sur la piste guitare (avant Ampire / Impulse).
-2. Nouvelle piste « Pédales » : entrée MIDI = ton contrôleur (All channels), armée, monitoring activé.
-3. Envoi de la piste Pédales vers la piste guitare : Audio = None, MIDI = All.
-4. Le point MIDI de l'écran clignote quand la pédale bouge.
-
-Alternative sans routage : **Param → Learn** dans la fenêtre FX de Reaper sur les
-paramètres `Expression`, `Octave Whammy`, `Vibrato`, `Speed`, `Blend`, `Bypass`, `Hold`.
-
-Manuel complet (anglais puis français) : `docs/Fantomine_Manual_EN-FR_v1.3.0.pdf`.
+- Aucun CC MIDI par défaut : clic droit sur une commande > **MIDI Learn** (9 commandes + footswitch, 14 bits accepté pour PITCH), pédales d'expression inversées par défaut.
+- Clic droit : **Plugin size** (60 % par défaut, 75 %, 100 %, taille par défaut des nouvelles fenêtres), **Glow** (halo des lumières 25 à 100 %), presets usine et utilisateur, Settings, MIDI.
+- Suivi de note jusqu'à ~33 Hz : 7 cordes accordée en Sol et plus bas.
 
 ## Versions
 
-- v1.2.0 : anti-gel v2 (JUCE 9.0.4 conservé, caches refaits par le timer, chien de garde, aucun appel à l'hôte depuis le thread audio)
-
-- v1.2.1 : menu de taille de fenêtre : « 60 % (default) », 75 %, 100 % (plus de taille en pixels)
-
-- v1.3.0 : MIDI Learn au clic droit sur chaque commande (Clear MIDI, assignations sauvegardées avec le projet)
-- v1.3.1 : « Invert MIDI pedal direction » (clic droit) pour les pédales d'expression PITCH et OCTAVE, activé par défaut comme sur Crycat et Wharry
-- v1.3.2 : suivi de hauteur quand les notes précédentes sonnent encore (autre corde) : la voix suit la dernière note jouée au lieu de rester sur l'ancienne ou de tomber sur une note fantôme grave ; détection d'attaque insensible aux battements des cordes graves
-- v1.3.3 : retour au suivi de hauteur de la v1.3.1 (la v1.3.2 décrochait davantage en jeu réel) ; MIDI Learn et pédale d'expression inversée conservés
-- v1.4.0 : clic droit > *Plugin size* > *Default size (new windows)* : taille par défaut des nouvelles fenêtres au choix, comme dans Octopus
+- **v2.0.0** : pédale entièrement redessinée au format double 2350 × 1800 (pédale plein cadre), titre néon vectoriel, potards animés (calques qui tournent ensemble, flou de mouvement, repère lumineux), footswitch, LED et jacks du kit photo, sérigraphie vectorielle Poppins, logo NINE HANDS | DSP officiel, barre de presets / ligne d'état unique sous la LED, réglage Glow, menus au style Octopus ouverts là où l'on clique, notice en français.
 - v1.4.1 : plus aucun CC MIDI assigné par défaut (tout passe par le MIDI Learn)
+- v1.4.0 : taille par défaut des nouvelles fenêtres au choix
+- v1.3.x : MIDI Learn sur chaque commande, pédales d'expression inversées par défaut
+- v1.2.x : anti-gel v2, menu de taille en %
+
+## Fabrication
+
+- `tools/make_art.py` (fond 2350 × 1800, sprites, `tools/layout.json`), `tools/make_knob.py` (calques des potards),
+  `tools/make_layers.py` (néon, halos, `Layout.h`), `tools/render` (captures du vrai plugin), `tools/manual.py` (notice).
+- Build GitHub Actions (`.github/workflows/build.yml`) : Windows et macOS universel, publiés dans les Releases.

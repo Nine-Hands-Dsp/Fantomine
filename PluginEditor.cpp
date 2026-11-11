@@ -1,837 +1,148 @@
 #include "PluginEditor.h"
 #include "BinaryData.h"
 #include "WigaWindowSize.h"
+#include "NineHandsGlow.h"
+
+using namespace juce;
+using P = FantomineAudioProcessor;
 
 namespace
 {
-    // ---- géométrie (pixels de background.png, 1240 x 928) ----
-    const juce::Point<float> kKnobC[6] = { { 176.4f, 431.3f }, { 349.1f, 431.3f }, { 521.8f, 431.3f },
-                                           { 715.2f, 431.3f }, { 888.7f, 431.3f }, { 1061.4f, 431.3f } };
-    constexpr float kKnobHit = 66.0f;
-    constexpr float kPtrR0 = 13.0f, kPtrR1 = 45.0f, kDotR = 54.5f;
+    const Colour silk (0xffe0dee8), silk2 (0xffc4c0d2);        // serigraphie claire / grise du design
+    const Colour mint (0xff7ef0d6), mintCore (0xffb0f6f2);
+    const Colour scrText (0xffe2ecec), scrTeal (0xff78beb4), scrEdge (0xff5a8c88), violet (0xffb48cff);
+    const Colour barFill (0xff060609), barRim (0xff0e0c14), barEdge (0xff787488), barInk (0xffe8eaf0);
+    const Colour menuAccent (0xff7ef0d6);                      // pastille des en-tetes de menu (menthe de la pedale)
+    constexpr float arrowW = 34.0f;
+    const char* knobIds[6]   = { "glide", "range", "tone", "vibrato", "speed", "blend" };
+    const char* knobNames[6] = { "GLIDE", "RANGE", "TONE", "VIBRATO", "SPEED", "BLEND" };
+    const char* knobMin[6]   = { "FAST", "\xc2\xb1" "1", "PURE", "0", "SLOW", "DRY" };
+    const char* knobMax[6]   = { "SLOW", "\xc2\xb1" "24", "REED", "WIDE", "FAST", "VOICE" };
 
-    const juce::Rectangle<int> kScreen  { 643, 83, 464, 162 };
-    const juce::Rectangle<int> kStatus  { 429, 627, 379, 33 };
-    const juce::Point<int>     kTitlePos { 49, 64 };
-    const juce::Point<int>     kLedPos   { 573, 545 };
-    const juce::Rectangle<int> kOctave  { 100, 755, 300, 85 };
-    const juce::Point<float>   kHandlePos { 105.19f, 1.76f };   // dans kOctave, position « 0 »
-    constexpr float kHandleScale = 1240.0f / 1680.0f;          // sprite en résolution d'origine du design
-    constexpr float kHandleTravel = 66.0f;
-    const juce::Point<float>   kFootC   { 620.0f, 804.0f };
+    Image png (const void* d, int n) { return ImageCache::getFromMemory (d, n); }
+    bool flag (P& p, const char* id) { return p.apvts.getRawParameterValue (id)->load() > 0.5f; }
+    int choice (P& p, const char* id) { return roundToInt (p.apvts.getRawParameterValue (id)->load()); }
 
-    constexpr float kStartAngle = juce::MathConstants<float>::pi * 1.25f;
-    constexpr float kEndAngle   = juce::MathConstants<float>::pi * 2.75f;
-
-    constexpr int kNumSizes = 3;                                       // 60 % (défaut d'origine) / 75 % / 100 %
-    const float kScales[kNumSizes] = { ui::kDefaultScale, 0.75f, 1.0f };
-
-    // ---- couleurs relevées sur le design ----
-    const juce::Colour kMint     { 0xff7ef0d6 };
-    const juce::Colour kMintCore { 0xffb0f6f2 };
-    const juce::Colour kText     { 0xffe2e8ec };
-    const juce::Colour kTeal     { 0xff78beb4 };
-    const juce::Colour kViolet   { 0xffb48cff };
-    const juce::Colour kGroove   { 0xff241e34 };
-
-    juce::Typeface::Ptr typeface (bool semibold)
-    {
-        static auto sb = juce::Typeface::createSystemTypefaceFor (BinaryData::InterSemiBold_otf, BinaryData::InterSemiBold_otfSize);
-        static auto rg = juce::Typeface::createSystemTypefaceFor (BinaryData::InterRegular_otf,  BinaryData::InterRegular_otfSize);
-        return semibold ? sb : rg;
-    }
-
-    juce::Font uiFont (float size, bool semibold = true)
-    {
-        return juce::Font (juce::FontOptions (typeface (semibold)).withHeight (size));
-    }
-
-    juce::Point<float> polar (juce::Point<float> c, float r, float angle)
-    {
-        return { c.x + r * std::sin (angle), c.y - r * std::cos (angle) };
-    }
-
-    juce::String noteName (float midi, int& centsOut)
+    String noteName (float midi, int& cents)
     {
         static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-        const int n = juce::roundToInt (midi);
-        centsOut = juce::roundToInt ((midi - (float) n) * 100.0f);
-        const int pc = ((n % 12) + 12) % 12;
-        return juce::String (names[pc]) + juce::String (n / 12 - 1);
+        const int n = roundToInt (midi);
+        cents = roundToInt ((midi - (float) n) * 100.0f);
+        return String (names[((n % 12) + 12) % 12]) + String (n / 12 - 1);
     }
 
-    bool isBypassed (FantomineAudioProcessor& p) { return p.apvts.getRawParameterValue ("bypass")->load() > 0.5f; }
-    bool isHold (FantomineAudioProcessor& p)     { return p.apvts.getRawParameterValue ("hold")->load() > 0.5f; }
-
-    juce::Image loadImage (const void* data, int size) { return juce::ImageCache::getFromMemory (data, size); }
-}
-
-//==============================================================================
-PedalKnob::PedalKnob (juce::String labelText, const Lights& l) : label (std::move (labelText)), lights (l)
-{
-    setSliderStyle (juce::Slider::RotaryVerticalDrag);
-    setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    setRotaryParameters (kStartAngle, kEndAngle, true);
-    setMouseDragSensitivity (260);
-    setScrollWheelEnabled (true);
-    setMouseCursor (juce::MouseCursor::PointingHandCursor);
-}
-
-bool PedalKnob::hitTest (int x, int y)
-{
-    return getLocalBounds().toFloat().getCentre().getDistanceFrom ({ (float) x, (float) y }) <= kKnobHit;
-}
-
-void PedalKnob::mouseDown (const juce::MouseEvent& e)
-{
-    if (e.mods.isPopupMenu()) { getParentComponent()->mouseDown (e.getEventRelativeTo (getParentComponent())); return; }
-    juce::Slider::mouseDown (e);
-}
-
-void PedalKnob::paint (juce::Graphics& g)
-{
-    const auto c = getLocalBounds().toFloat().getCentre();
-    const float prop = (float) valueToProportionOfLength (getValue());
-    const float angle = kStartAngle + prop * (kEndAngle - kStartAngle);
-    const auto p0 = polar (c, kPtrR0, angle), p1 = polar (c, kPtrR1, angle);
-    const float on = lights.power;
-
-    // rainure éteinte (toujours présente sous le trait, visible en bypass)
-    g.setColour (kGroove.withAlpha (0.85f));
-    g.drawLine ({ p0, p1 }, 3.6f);
-    g.setColour (juce::Colour (0xff9a8cc4).withAlpha (0.22f * (1.0f - on)));
-    g.drawLine ({ p0.translated (0.9f, 1.2f), p1.translated (0.9f, 1.2f) }, 1.0f);
-
-    // trait lumineux
-    if (on > 0.01f)
+    // texte vectoriel centre sur (x, y) (milieu entre jambage haut et bas, comme l'apercu), rotation en radians
+    Path textPath (const String& s, const Typeface::Ptr& face, float em, Point<float> c, float rot = 0.0f, float track = 0.0f)
     {
-        g.setColour (kMint.withAlpha (0.16f * on)); g.drawLine ({ p0, p1 }, 10.0f);
-        g.setColour (kMint.withAlpha (0.38f * on)); g.drawLine ({ p0, p1 }, 5.6f);
-        g.setColour (kMintCore.withAlpha (on));     g.drawLine ({ p0, p1 }, 3.0f);
-    }
-
-    // repère blanc sur la jupe
-    const auto dot = polar (c, kDotR, angle);
-    g.setColour (juce::Colours::black.withAlpha (0.45f));
-    g.fillEllipse (dot.x - 2.6f + 0.6f, dot.y - 2.6f + 0.9f, 5.2f, 5.2f);
-    g.setColour (juce::Colour (0xffeef3fa).interpolatedWith (juce::Colour (0xff8a889a), 1.0f - (0.5f + 0.5f * on)));
-    g.fillEllipse (dot.x - 2.6f, dot.y - 2.6f, 5.2f, 5.2f);
-}
-
-//==============================================================================
-OctaveSwitch::OctaveSwitch (FantomineAudioProcessor& pr, juce::RangedAudioParameter& p, const juce::Image& h)
-    : proc (pr), attachment (p, [this] (float v)
-      {
-          position = juce::jlimit (0, 2, juce::roundToInt (v));
-          if (onChange) onChange();
-          repaint();
-      }),
-      handle (h)
-{
-    attachment.sendInitialUpdate();
-    anim = (float) position;
-    setMouseCursor (juce::MouseCursor::PointingHandCursor);
-}
-
-void OctaveSwitch::paint (juce::Graphics& g)
-{
-    // dessin en sous-pixel, à partir du sprite pleine résolution : net à toutes les tailles de fenêtre
-    const float dx = (anim - 1.0f) * kHandleTravel;
-    g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
-    g.drawImageTransformed (handle, juce::AffineTransform::scale (kHandleScale)
-                                        .translated (kHandlePos.x + dx, kHandlePos.y));
-}
-
-void OctaveSwitch::setFromX (float x)
-{
-    const float c = kHandlePos.x + (float) handle.getWidth() * kHandleScale * 0.5f;
-    const int pos = x < c - kHandleTravel * 0.5f ? 0 : (x > c + kHandleTravel * 0.5f ? 2 : 1);
-    if (proc.whammyActive.load())
-    {
-        proc.whammyActive.store (false);          // le levier reprend la main sur la pédale
-        if (pos == position && onChange) onChange();
-    }
-    if (pos != position) attachment.setValueAsCompleteGesture ((float) pos);
-}
-
-void OctaveSwitch::mouseDown (const juce::MouseEvent& e)
-{
-    if (e.mods.isPopupMenu()) { getParentComponent()->mouseDown (e.getEventRelativeTo (getParentComponent())); return; }
-    setFromX (e.position.x);
-}
-void OctaveSwitch::mouseDrag (const juce::MouseEvent& e) { if (! e.mods.isPopupMenu()) setFromX (e.position.x); }
-
-//==============================================================================
-// coordonnées locales : 160 x 160, centre (80, 80)
-bool Footswitch::hitTest (int x, int y) { return juce::Point<float> (80.0f, 80.0f).getDistanceFrom ({ (float) x, (float) y }) <= 72.0f; }
-
-void Footswitch::paint (juce::Graphics& g)
-{
-    if (pressAnim < 0.01f) return;
-    // le chapeau s'enfonce : il s'assombrit et son ombre interne s'élargit
-    const juce::Point<float> c (80.0f, 80.0f);
-    const float r = 50.0f;
-    g.setColour (juce::Colours::black.withAlpha (0.28f * pressAnim));
-    g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
-    juce::ColourGradient sh (juce::Colours::black.withAlpha (0.0f), c.x, c.y,
-                             juce::Colours::black.withAlpha (0.45f * pressAnim), c.x + r, c.y, true);
-    g.setGradientFill (sh);
-    g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
-}
-
-void Footswitch::mouseDown (const juce::MouseEvent& e)
-{
-    if (e.mods.isPopupMenu()) { getParentComponent()->mouseDown (e.getEventRelativeTo (getParentComponent())); return; }
-    proc.footswitchDown();
-}
-
-void Footswitch::mouseUp (const juce::MouseEvent& e)
-{
-    if (e.mods.isPopupMenu()) return;
-    proc.footswitchUp();
-}
-
-//==============================================================================
-// coordonnées locales de l'écran : 464 x 162 (positions relevées sur le design)
-juce::Rectangle<float> GhostDisplay::prevArea() const   { return { 6.0f, 8.0f, 22.0f, 24.0f }; }
-juce::Rectangle<float> GhostDisplay::presetArea() const { return { 30.0f, 8.0f, 218.0f, 24.0f }; }
-juce::Rectangle<float> GhostDisplay::nextArea() const   { return { 248.0f, 8.0f, 22.0f, 24.0f }; }
-juce::Rectangle<float> GhostDisplay::modeArea() const   { return { 298.2f, 9.6f, 80.4f, 21.4f }; }
-juce::Rectangle<float> GhostDisplay::expArea() const    { return { 425.1f, 27.3f, 29.5f, 125.5f }; }
-
-void GhostDisplay::tick (float dt)
-{
-    ampSm  += (proc.uiAmp.load() - ampSm) * juce::jmin (1.0f, dt * 12.0f);
-    midiSm += (proc.uiMidi.load() - midiSm) * juce::jmin (1.0f, dt * 20.0f);
-    expSm  += (proc.uiExpression.load() - expSm) * juce::jmin (1.0f, dt * 25.0f);
-    phase  += dt * 1.6f;
-    if (proc.midiActivity.exchange (0.0f) > 0.0f) midiBlink = 1.0f;
-    midiBlink = juce::jmax (0.0f, midiBlink - dt * 4.0f);
-
-    // la voix fantôme ondule en continu quand la pédale est allumée : on redessine à chaque tic.
-    // Éteint (bypass), paint() ne dessine rien : un dernier redessin pour effacer, puis plus rien.
-    const float on = lights.power;
-    if (on >= 0.01f || drawnPower >= 0.01f)
-    {
-        if (auto* pv = dynamic_cast<PedalView*> (getParentComponent())) pv->askRepaint (getBounds());   // suivi du chien de garde
-        else repaint();
-    }
-    drawnPower = on;
-}
-
-void GhostDisplay::paint (juce::Graphics& g)
-{
-    const float on = lights.power;
-    if (on < 0.01f) return;                       // bypass : écran éteint, seule la vitre du visuel reste
-    const auto b = getLocalBounds().toFloat();
-    g.setOpacity (1.0f);
-
-    juce::Path clip; clip.addRoundedRectangle (b, 10.0f);
-    g.reduceClipRegion (clip);
-
-    // trame de l'écran
-    g.setColour (kMint.withAlpha (0.045f * on));
-    for (float y = 6.0f; y < b.getHeight() - 4.0f; y += 7.5f)
-        g.drawHorizontalLine ((int) y, 6.0f, 416.0f);
-    g.setColour (kMint.withAlpha (0.025f * on));
-    for (float x = 6.0f; x < 416.0f; x += 7.5f)
-        g.drawVerticalLine ((int) x, 6.0f, b.getHeight() - 6.0f);
-
-    // voix fantôme : forme d'onde réelle (harmoniques du moteur), trois passes lumineuses
-    const auto h = proc.getHarmonicsSnapshot();
-    const float x0 = 12.5f, x1 = 403.7f, cy = 86.3f;
-    const float cycles = juce::jlimit (1.5f, 5.0f, 1.6f + (midiSm - 36.0f) / 14.0f);
-    const float amp = 33.0f * juce::jlimit (0.04f, 1.0f, ampSm * 1.3f);
-    double norm = 0.0; for (auto a : h) norm += a; norm = juce::jmax (1e-6, norm);
-
-    juce::Path p;
-    bool first = true;
-    for (float x = x0; x <= x1; x += 1.5f)
-    {
-        const float t = (x - x0) / (x1 - x0);
-        const float th = juce::MathConstants<float>::twoPi * (t * cycles - phase);
-        double s = 0.0;
-        for (size_t k = 0; k < h.size(); ++k) s += h[k] * std::sin ((double) (k + 1) * th);
-        const float edge = std::sin (juce::MathConstants<float>::pi * t);
-        const float y = cy - amp * edge * (float) (s / norm) * 1.6f;
-        if (first) { p.startNewSubPath (x, y); first = false; } else p.lineTo (x, y);
-    }
-    const juce::PathStrokeType st1 (9.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-    const juce::PathStrokeType st2 (4.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-    const juce::PathStrokeType st3 (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-    g.setColour (kMint.withAlpha (0.10f * on)); g.strokePath (p, st1);
-    g.setColour (kMint.withAlpha (0.25f * on)); g.strokePath (p, st2);
-    g.setColour (kMint.withAlpha (0.95f * on)); g.strokePath (p, st3);
-
-    // preset
-    auto arrow = [&] (juce::Rectangle<float> r, bool left)
-    {
-        juce::Path t; const auto c = r.getCentre();
-        if (left) t.addTriangle (c.x + 4.5f, c.y - 6.5f, c.x + 4.5f, c.y + 6.5f, c.x - 5.0f, c.y);
-        else      t.addTriangle (c.x - 4.5f, c.y - 6.5f, c.x - 4.5f, c.y + 6.5f, c.x + 5.0f, c.y);
-        g.setColour (kTeal.withAlpha (on)); g.fillPath (t);
-    };
-    arrow (prevArea(), true);
-    arrow (nextArea(), false);
-
-    auto name = proc.getCurrentPresetName();
-    if (proc.presetDirty.load()) name << " *";
-    g.setFont (uiFont (21.0f));
-    g.setColour (kText.withAlpha (on));
-    g.drawFittedText (name, presetArea().withTrimmedLeft (2.5f).toNearestInt(), juce::Justification::centredLeft, 1, 0.9f);
-
-    // sens de la pédale
-    const auto ma = modeArea();
-    const int mode = juce::roundToInt (proc.apvts.getRawParameterValue ("pedalMode")->load());
-    const char* modes[] = { "UP", "DOWN", "BIPOLAR" };
-    g.setColour (kTeal.withAlpha (0.85f * on));
-    g.drawRoundedRectangle (ma, ma.getHeight() * 0.5f, 1.3f);
-    g.setFont (uiFont (15.5f));
-    g.setColour (kText.withAlpha (on));
-    g.drawText (modes[juce::jlimit (0, 2, mode)], ma, juce::Justification::centred);
-
-    // activité MIDI
-    const float md = 0.35f + 0.65f * midiBlink;
-    g.setColour (kMint.withAlpha (md * on));
-    g.fillEllipse (398.6f - 4.4f, 19.9f - 4.4f, 8.8f, 8.8f);
-
-    // note jouée
-    if (proc.uiNote.load())
-    {
-        int cents = 0;
-        const auto nn = noteName (midiSm, cents);
-        g.setFont (uiFont (32.0f));
-        g.setColour (kText.withAlpha (on));
-        g.drawText (nn, juce::Rectangle<float> (12.5f, 125.0f, 70.0f, 38.0f), juce::Justification::centredLeft);
-        const float nx = 12.5f + juce::GlyphArrangement::getStringWidth (uiFont (32.0f), nn) + 14.0f;
-        g.setFont (uiFont (16.0f, false));
-        g.setColour (kTeal.withAlpha (on));
-        g.drawText ((cents >= 0 ? "+" : "") + juce::String (cents) + juce::String::fromUTF8 (" \xc2\xa2"),
-                    juce::Rectangle<float> (juce::jmax (65.7f, nx), 133.0f, 80.0f, 24.0f), juce::Justification::centredLeft);
-    }
-
-    // étiquettes d'état
-    g.setFont (uiFont (12.0f));
-    if (isHold (proc))
-    {
-        g.setColour (kViolet.withAlpha (on));
-        g.drawText ("HOLD", juce::Rectangle<float> (300.0f, 136.0f, 100.0f, 18.0f), juce::Justification::centredRight);
-    }
-    if (proc.learnTarget.load() >= 0)
-    {
-        g.setColour (kViolet.withAlpha (on));
-        g.drawText ("LEARN", juce::Rectangle<float> (300.0f, 136.0f, 100.0f, 18.0f), juce::Justification::centredRight);
-    }
-
-    // barre pédale d'expression
-    const auto ea = expArea();
-    g.setFont (uiFont (13.5f));
-    g.setColour (kTeal.withAlpha (on));
-    g.drawText ("EXP", juce::Rectangle<float> (ea.getX() - 6.0f, 5.0f, ea.getWidth() + 12.0f, 16.0f), juce::Justification::centred);
-    g.setColour (kTeal.withAlpha (0.75f * on));
-    g.drawRoundedRectangle (ea, 6.0f, 1.3f);
-    auto fill = ea.reduced (3.5f);
-    fill = fill.withTop (fill.getBottom() - fill.getHeight() * juce::jlimit (0.0f, 1.0f, expSm));
-    if (fill.getHeight() > 0.5f)
-    {
-        juce::ColourGradient eg (kMint.withAlpha (0.95f * on), fill.getX(), ea.getY(), kMint.withAlpha (0.55f * on), fill.getX(), ea.getBottom(), false);
-        g.setGradientFill (eg);
-        g.fillRoundedRectangle (fill, 3.5f);
-    }
-}
-
-void GhostDisplay::stepPreset (int delta)
-{
-    const int n = proc.getNumPrograms();
-    proc.setCurrentProgram ((proc.getCurrentProgram() + delta + n) % n);
-    if (showStatus) showStatus (proc.getCurrentPresetName());
-    repaint();
-}
-
-void GhostDisplay::showPresetMenu()
-{
-    juce::PopupMenu m, userLoad, userSave;
-    const auto& fp = FantomineAudioProcessor::getFactoryPresets();
-    m.addSectionHeader ("Factory presets");
-    for (int i = 0; i < (int) fp.size(); ++i)
-        m.addItem (100 + i, juce::String (i + 1).paddedLeft ('0', 2) + "  " + fp[(size_t) i].name, true,
-                   proc.getCurrentProgram() == i && proc.getCurrentPresetName() == fp[(size_t) i].name);
-
-    for (int s = 1; s <= 9; ++s)
-    {
-        const bool used = proc.isUserSlotUsed (s);
-        userLoad.addItem (200 + s, juce::String (s) + (used ? "  " + proc.getUserSlotName (s) : juce::String ("  (empty)")), used);
-        userSave.addItem (300 + s, juce::String (s) + (used ? "  (replace)" : juce::String()));
-    }
-    m.addSeparator();
-    m.addSubMenu ("Load user preset", userLoad);
-    m.addSubMenu ("Save to slot", userSave);
-
-    juce::Component::SafePointer<GhostDisplay> safe (this);
-    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this), [safe] (int r)
-    {
-        if (safe == nullptr || r == 0) return;
-        auto& p = safe->proc;
-        if (r >= 100 && r < 200)      p.setCurrentProgram (r - 100);
-        else if (r > 200 && r < 300)  p.loadUserPreset (r - 200);
-        else if (r > 300 && r < 400)  p.saveUserPreset (r - 300);
-        if (safe->showStatus) safe->showStatus ((r > 300 ? juce::String ("Saved: ") : juce::String()) + p.getCurrentPresetName());
-        safe->repaint();
-    });
-}
-
-void GhostDisplay::setExpressionFromY (float y)
-{
-    const auto ea = expArea().reduced (3.5f);
-    const float v = juce::jlimit (0.0f, 1.0f, (ea.getBottom() - y) / ea.getHeight());
-    if (auto* p = proc.apvts.getParameter ("expression")) p->setValueNotifyingHost (v);
-    if (showStatus) showStatus ("EXP  " + juce::String (juce::roundToInt (v * 100.0f)) + " %");
-}
-
-void GhostDisplay::mouseDown (const juce::MouseEvent& e)
-{
-    if (e.mods.isPopupMenu()) { getParentComponent()->mouseDown (e.getEventRelativeTo (getParentComponent())); return; }
-    const auto pos = e.position;
-    if (expArea().expanded (6.0f).contains (pos))
-    {
-        draggingExp = true;
-        if (auto* p = proc.apvts.getParameter ("expression")) p->beginChangeGesture();
-        setExpressionFromY (pos.y);
-    }
-    else if (prevArea().contains (pos))   stepPreset (-1);
-    else if (nextArea().contains (pos))   stepPreset (+1);
-    else if (presetArea().contains (pos)) showPresetMenu();
-    else if (modeArea().expanded (4.0f).contains (pos))
-    {
-        if (auto* p = proc.apvts.getParameter ("pedalMode"))
+        const Font font (FontOptions (face).withPointHeight (em));
+        float total = 0.0f;
+        for (int i = 0; i < s.length(); ++i)
+            total += GlyphArrangement::getStringWidth (font, String::charToString (s[i])) + (i > 0 ? track : 0.0f);
+        const float base = (font.getAscent() - font.getDescent()) * 0.5f;
+        GlyphArrangement ga;
+        float x = -total * 0.5f;
+        for (int i = 0; i < s.length(); ++i)
         {
-            const int mode = (juce::roundToInt (proc.apvts.getRawParameterValue ("pedalMode")->load()) + 1) % 3;
-            p->setValueNotifyingHost (p->convertTo0to1 ((float) mode));
-            const char* names[] = { "Pedal UP: heel = played note", "Pedal DOWN: toe = lower", "Pedal BIPOLAR: centre = played note" };
-            if (showStatus) showStatus (names[mode]);
+            const String ch = String::charToString (s[i]);
+            ga.addLineOfText (font, ch, x, base);
+            x += GlyphArrangement::getStringWidth (font, ch) + track;
         }
+        Path p; ga.createPath (p);
+        p.applyTransform (AffineTransform::rotation (rot).translated (c.x, c.y));
+        return p;
+    }
+
+    std::unique_ptr<Drawable> svg (const char* data, int size)
+    {
+        return Drawable::createFromSVGString (String::fromUTF8 (data, size));
     }
 }
 
-void GhostDisplay::mouseDrag (const juce::MouseEvent& e)
-{
-    if (draggingExp) setExpressionFromY (e.position.y);
-}
-
-void GhostDisplay::mouseUp (const juce::MouseEvent&)
-{
-    if (draggingExp)
-        if (auto* p = proc.apvts.getParameter ("expression")) p->endChangeGesture();
-    draggingExp = false;
-}
-
-//==============================================================================
-PedalView::PedalView (FantomineAudioProcessor& p)
-    : proc (p), footswitch (p), display (p, lights)
-{
-    background = loadImage (BinaryData::background_png, BinaryData::background_pngSize);
-    titleOn    = loadImage (BinaryData::title_on_png,   BinaryData::title_on_pngSize);
-    ledOn      = loadImage (BinaryData::led_on_png,     BinaryData::led_on_pngSize);
-    octHandle  = loadImage (BinaryData::oct_handle_png, BinaryData::oct_handle_pngSize);
-
-    const bool on = ! isBypassed (p);
-    lights.power = lights.title = on ? 1.0f : 0.0f;
-    wasOn = on;
-
-    PedalKnob* knobs[] = { &glide, &range, &tone, &vibrato, &speed, &blend };
-    const char* ids[]  = { "glide", "range", "tone", "vibrato", "speed", "blend" };
-    for (int i = 0; i < 6; ++i)
-    {
-        auto* k = knobs[i];
-        addAndMakeVisible (*k);
-        k->setBounds (juce::Rectangle<int> (140, 140).withCentre (kKnobC[i].roundToInt()));
-        attachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (p.apvts, ids[i], *k));
-        k->addListener (this);
-    }
-
-    octave = std::make_unique<OctaveSwitch> (p, *p.apvts.getParameter ("octave"), octHandle);
-    addAndMakeVisible (*octave);
-    octave->setBounds (kOctave);
-    octave->onChange = [this]
-    {
-        const char* txt[] = { "OCTAVE  -1", "OCTAVE  0", "OCTAVE  +1" };
-        setStatus (txt[octave->position]);
-    };
-
-    addAndMakeVisible (footswitch);
-    footswitch.setBounds (juce::Rectangle<int> (160, 160).withCentre (kFootC.roundToInt()));
-    footswitch.setMouseCursor (juce::MouseCursor::PointingHandCursor);
-
-    addAndMakeVisible (display);
-    display.setBounds (kScreen);
-    display.showStatus = [this] (const juce::String& s) { setStatus (s); };
-}
-
-PedalView::~PedalView()
-{
-    for (auto* k : { &glide, &range, &tone, &vibrato, &speed, &blend }) k->removeListener (this);
-}
-
-void PedalView::setStatus (const juce::String& s, double seconds)
-{
-    statusText = s;
-    statusUntil = juce::Time::getMillisecondCounterHiRes() + seconds * 1000.0;
-    repaint (kStatus);
-}
-
-void PedalView::sliderValueChanged (juce::Slider* s)
-{
-    if (auto* k = dynamic_cast<PedalKnob*> (s))
-        setStatus (k->label + "   " + k->getTextFromValue (k->getValue()));
-}
-
-void PedalView::sliderDragStarted (juce::Slider* s) { sliderValueChanged (s); }
-
-void PedalView::askRepaint (juce::Rectangle<int> r)
-{
-    if (repaintAskedMs <= 0.0) repaintAskedMs = juce::Time::getMillisecondCounterHiRes();
-    repaint (r);
-}
-
-// fond mis à l'échelle exacte de l'écran : appelé par le timer de l'éditeur, jamais par paint()
-void PedalView::rebuildCache (float px)
-{
-    const int tw = juce::jlimit (64, ui::kW * 3, (int) std::lround (ui::kW * px));
-    const int th = juce::jlimit (48, ui::kH * 3, (int) std::lround (ui::kH * px));
-    if (bgCache.isValid() && bgCache.getWidth() == tw && bgCache.getHeight() == th) return;
-    bgCache = (tw >= background.getWidth()) ? background : background.rescaled (tw, th, juce::Graphics::highResamplingQuality);
-    repaint();
-}
-
-void PedalView::paint (juce::Graphics& g)
-{
-    lastPaintMs = juce::Time::getMillisecondCounterHiRes();
-    repaintAskedMs = 0.0;
-    g.fillAll (juce::Colours::black);
-    // anti-gel : aucun rescale ici, on dessine le cache existant (ou l'original en attendant le timer)
-    const auto& bg = bgCache.isValid() ? bgCache : background;
-    g.setImageResamplingQuality (juce::Graphics::mediumResamplingQuality);
-    g.drawImageTransformed (bg, juce::AffineTransform::scale ((float) ui::kW / (float) bg.getWidth(),
-                                                              (float) ui::kH / (float) bg.getHeight()));
-    g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
-
-    // néon du titre
-    if (lights.title > 0.005f)
-    {
-        g.setOpacity (juce::jlimit (0.0f, 1.0f, lights.title));
-        g.drawImageAt (titleOn, kTitlePos.x, kTitlePos.y);
-        g.setOpacity (1.0f);
-    }
-}
-
-void PedalView::paintOverChildren (juce::Graphics& g)
-{
-    // LED au-dessus du footswitch
-    if (lights.led > 0.005f)
-    {
-        g.setOpacity (juce::jlimit (0.0f, 1.0f, lights.led));
-        g.drawImageAt (ledOn, kLedPos.x, kLedPos.y);
-        g.setOpacity (1.0f);
-    }
-
-    // ligne d'état
-    const juce::String txt = currentStatusText();
-    g.setColour (juce::Colour (0xffd8dae4).withAlpha (isBypassed (proc) ? 0.55f : 0.95f));
-    g.setFont (uiFont (18.5f));
-    g.drawFittedText (txt, kStatus.reduced (12, 0), juce::Justification::centred, 1, 0.9f);
-}
-
-juce::String PedalView::currentStatusText() const
-{
-    juce::String txt = statusText;
-    if (juce::Time::getMillisecondCounterHiRes() > statusUntil)
-    {
-        txt = isBypassed (proc) ? juce::String ("BYPASS")
-                                : (isHold (proc) ? juce::String ("HOLD  -  tap to release") : proc.getCurrentPresetName());
-    }
-    // MIDI Learn en attente : prioritaire sur tout autre message
-    const int lt = proc.learnTarget.load();
-    if (lt >= 0) txt = "MIDI LEARN: move a control for " + juce::String (FantomineAudioProcessor::getTargetName (lt));
-    return txt;
-}
-
-void PedalView::tick (float dt)
-{
-    const bool on = ! isBypassed (proc);
-    const bool hold = isHold (proc);
-
-    // fondu global : extinction rapide, allumage un peu plus doux
-    const float target = on ? 1.0f : 0.0f;
-    const float fadeSpeed = on ? 9.0f : 14.0f;
-    lights.power += (target - lights.power) * juce::jmin (1.0f, dt * fadeSpeed);
-    if (std::abs (target - lights.power) < 0.002f) lights.power = target;
-
-    display.tick (dt);   // après le fondu : l'écran sait tout de suite s'il doit se rallumer
-
-    // néon : petit scintillement à l'allumage
-    if (on && ! wasOn) flickerT = 0.0f;
-    wasOn = on;
-    flickerT += dt;
-    float title = lights.power;
-    if (on && flickerT < 0.35f)
-    {
-        const float f = flickerT;
-        const bool dark = (f > 0.04f && f < 0.08f) || (f > 0.15f && f < 0.19f);
-        title *= dark ? 0.25f : 1.0f;
-    }
-    lights.title = title;
-
-    // LED : suit le niveau de la voix, pulse en HOLD, éteinte en bypass
-    ledPulse += dt;
-    float led = 0.0f;
-    if (on)
-        led = hold ? 0.55f + 0.45f * (0.5f + 0.5f * std::sin (ledPulse * juce::MathConstants<float>::twoPi * 1.2f))
-                   : 0.72f + 0.28f * juce::jlimit (0.0f, 1.0f, proc.uiAmp.load() * 1.4f);
-    lights.led += (led * lights.power - lights.led) * juce::jmin (1.0f, dt * 20.0f);
-
-    const float press = proc.footswitchPressed.load() ? 1.0f : 0.0f;
-    if (std::abs (press - footswitch.pressAnim) > 0.001f)
-    {
-        footswitch.pressAnim += (press - footswitch.pressAnim) * juce::jmin (1.0f, dt * 30.0f);
-        askRepaint (footswitch.getBounds());
-    }
-    // levier : 3 positions, ou suivi continu quand une pédale le pilote (whammy)
-    const bool whammy = proc.whammyActive.load();
-    const float oct = proc.uiOctave.load();
-    const float op = whammy ? juce::jlimit (0.0f, 2.0f, oct + 1.0f) : (float) octave->position;
-    if (std::abs (op - octave->anim) > 0.001f)
-    {
-        octave->anim += (op - octave->anim) * juce::jmin (1.0f, dt * (whammy ? 30.0f : 22.0f));
-        askRepaint (octave->getBounds());
-    }
-    if (whammy && std::abs (oct - lastOct) > 0.004f)
-        setStatus ("OCTAVE  " + juce::String (oct >= 0 ? "+" : "") + juce::String (oct * 12.0f, 1) + " st");
-    lastOct = oct;
-
-    // les potards ne se redessinent que pendant un fondu
-    if (std::abs (lastPower - lights.power) > 0.0005f)
-    {
-        for (auto* k : { &glide, &range, &tone, &vibrato, &speed, &blend }) askRepaint (k->getBounds());
-        lastPower = lights.power;
-    }
-
-    // on ne redessine une zone que si ce qu'elle affiche a vraiment changé (zéro travail au repos)
-    auto changed = [] (float& drawn, float now) { if (std::abs (drawn - now) < 0.002f) return false; drawn = now; return true; };
-
-    if (changed (drawnTitle, lights.title))
-        askRepaint ({ kTitlePos.x, kTitlePos.y, titleOn.getWidth(), titleOn.getHeight() });
-    if (changed (drawnLed, lights.led))
-        askRepaint ({ kLedPos.x, kLedPos.y, ledOn.getWidth(), ledOn.getHeight() });
-
-    // MIDI Learn : confirmation « <Commande> = CC n » pendant 2 s
-    const int learned = proc.lastLearned.exchange (-1);
-    if (learned >= 0)
-    {
-        const int cc = learned == FantomineAudioProcessor::kLearnFootswitch ? proc.footswitchCC.load()
-                                                                            : proc.targetCC[(size_t) learned].load();
-        setStatus (juce::String (FantomineAudioProcessor::getTargetName (learned)) + " = CC " + juce::String (cc), 2.0);
-    }
-
-    const juce::String st = currentStatusText();
-    const bool bypassed = isBypassed (proc);
-    if (! statusDrawnOnce || st != drawnStatus || bypassed != drawnStatusBypass)
-    {
-        statusDrawnOnce = true;
-        drawnStatus = st;
-        drawnStatusBypass = bypassed;
-        askRepaint (kStatus);
-    }
-}
-
-void PedalView::mouseDown (const juce::MouseEvent& e)
-{
-    if (! e.mods.isPopupMenu()) return;
-    // clic droit sur un contrôle pilotable : son MIDI Learn apparaît en tête du menu
-    int focus = -1;
-    const auto* src = e.originalComponent;
-    if (src == &vibrato) focus = FantomineAudioProcessor::kVibrato;
-    else if (src == &speed) focus = FantomineAudioProcessor::kSpeed;
-    else if (src == &blend) focus = FantomineAudioProcessor::kBlend;
-    else if (src == &glide) focus = FantomineAudioProcessor::kGlide;
-    else if (src == &range) focus = FantomineAudioProcessor::kRange;
-    else if (src == &tone)  focus = FantomineAudioProcessor::kTone;
-    else if (src == octave.get()) focus = FantomineAudioProcessor::kOctave;
-    else if (src == &footswitch)  focus = FantomineAudioProcessor::kLearnFootswitch;
-    else if (src == &display)
-        focus = display.isOverModeArea (e.getEventRelativeTo (&display).position) ? FantomineAudioProcessor::kPedalMode
-                                                                                  : FantomineAudioProcessor::kPitch;
-    showContextMenu (focus);
-}
-
-void PedalView::showContextMenu (int focus)
-{
-    using P = FantomineAudioProcessor;
-    juce::PopupMenu m, size, pedals, foot, mode, wrange;
-
-    auto ccText = [] (int cc) { return cc < 0 ? juce::String ("not assigned") : "CC " + juce::String (cc); };
-
-    // clic droit sur une commande : MIDI Learn de cette commande en tête du menu
-    const int lt = proc.learnTarget.load();
-    if (focus >= 0)
-    {
-        const bool fs = focus == P::kLearnFootswitch;
-        const int cc = fs ? proc.footswitchCC.load() : proc.targetCC[(size_t) focus].load();
-        const juce::String name = P::getTargetName (focus);
-        m.addSectionHeader (name);
-        m.addItem (fs ? 30 : 1000 + focus * 10, "MIDI Learn: " + name + " (" + (cc >= 0 ? "CC " + juce::String (cc) : juce::String ("none")) + ")",
-                   true, lt == focus);
-        m.addItem (fs ? 31 : 1001 + focus * 10, "Clear MIDI: " + name, cc >= 0);
-        if (lt >= 0) m.addItem (1200, "Cancel MIDI learn");
-        m.addSeparator();
-    }
-
-    // une entrée par cible : Learn / Clear (+ CC courants pour la hauteur)
-    static const int ccs[] = { 11, 4, 7, 1, 2 };
-    const char* ccNames[] = { "CC 11 - Expression", "CC 4 - Foot Controller", "CC 7 - Volume", "CC 1 - Modulation", "CC 2 - Breath" };
-    for (int t = 0; t < P::kNumTargets; ++t)
-    {
-        juce::PopupMenu sub;
-        const int cc = proc.targetCC[(size_t) t].load();
-        sub.addItem (1000 + t * 10, "MIDI Learn");
-        sub.addItem (1001 + t * 10, "Clear", cc >= 0);
-        if (t == P::kPitch)
-        {
-            sub.addSeparator();
-            for (int i = 0; i < 5; ++i) sub.addItem (1002 + i, ccNames[i], true, cc == ccs[i]);
-        }
-        const juce::String label = t == P::kPitch  ? "PITCH (bend)"
-                                 : t == P::kOctave ? "OCTAVE (whammy)" : juce::String (P::getTargetName (t));
-        pedals.addSubMenu ("Learn: " + label + "   " + ccText (cc), sub, true, nullptr, lt == t);
-    }
-    pedals.addSeparator();
-    if (lt >= 0) pedals.addItem (1200, "Cancel MIDI learn");
-    pedals.addItem (1201, "Clear all MIDI assignments");
-    pedals.addSeparator();
-    const bool inv = proc.apvts.getRawParameterValue ("invert")->load() > 0.5f;
-    pedals.addItem (50, "Invert pedal direction", true, inv);
-    m.addSubMenu ("Expression pedals (MIDI)", pedals);
-
-    const int wr = juce::roundToInt (proc.apvts.getRawParameterValue ("whammyRange")->load());
-    wrange.addItem (41, "Heel -1 oct  >  centre 0  >  toe +1 oct", true, wr == 0);
-    wrange.addItem (42, "Heel 0  >  toe +1 oct", true, wr == 1);
-    wrange.addItem (43, "Heel 0  >  toe -1 oct", true, wr == 2);
-    m.addSubMenu ("Octave whammy range", wrange);
-
-    const int pm = juce::roundToInt (proc.apvts.getRawParameterValue ("pedalMode")->load());
-    mode.addItem (21, "UP: heel = played note, toe = + Range", true, pm == 0);
-    mode.addItem (22, "DOWN: heel = played note, toe = - Range", true, pm == 1);
-    mode.addItem (23, "BIPOLAR: centre = played note", true, pm == 2);
-    m.addSubMenu ("Pitch pedal direction", mode);
-    m.addItem (50, "Invert MIDI pedal direction (heel / toe)", true, inv);
-
-    const int fcc = proc.footswitchCC.load();
-    foot.addItem (30, "MIDI Learn (press the footswitch)");
-    foot.addItem (31, "None (use the DAW's MIDI learn)", true, fcc < 0);
-    foot.addItem (32, "CC 64", true, fcc == 64);
-    foot.addItem (33, "CC 80", true, fcc == 80);
-    if (fcc >= 0 && fcc != 64 && fcc != 80) foot.addItem (34, "CC " + juce::String (fcc) + " (learned)", true, true);
-    m.addSubMenu ("Footswitch (MIDI)", foot);
-
-    // Plugin size : taille de cette fenêtre + taille par défaut des nouvelles fenêtres (comme Octopus)
-    const int cur = getSizeIndex ? getSizeIndex() : -1;
-    const int def = WigaWindowSize::defaultIndex (JucePlugin_Name, kNumSizes);
-    const char* sizeNames[kNumSizes] = { "60 %", "75 %", "100 %" };
-    juce::PopupMenu defSize;
-    for (int i = 0; i < kNumSizes; ++i)
-    {
-        size.addItem (i == 0 ? 104 : 101 + i, juce::String (sizeNames[i]) + (i == def ? "  (default)" : ""), true, cur == i);
-        defSize.addItem (110 + i, sizeNames[i], true, i == def);
-    }
-    size.addSeparator();
-    size.addSubMenu ("Default size (new windows)", defSize);
-    m.addSeparator();
-    m.addSubMenu ("Plugin size", size);
-
-    juce::Component::SafePointer<PedalView> safe (this);
-    m.showMenuAsync (juce::PopupMenu::Options(), [safe] (int r)
-    {
-        if (safe == nullptr || r == 0) return;
-        auto& p = safe->proc;
-        auto setChoice = [&p] (const char* id, int v)
-        {
-            if (auto* prm = p.apvts.getParameter (id)) prm->setValueNotifyingHost (prm->convertTo0to1 ((float) v));
-        };
-        if (r >= 102 && r <= 104)        { if (safe->onSizeRequest) safe->onSizeRequest (r == 104 ? 0 : r - 101); }
-        else if (r >= 110 && r < 110 + kNumSizes)
-        {
-            WigaWindowSize::setDefaultIndex (JucePlugin_Name, r - 110);       // toutes les nouvelles fenêtres de ce plugin
-            if (safe->onSizeRequest) safe->onSizeRequest (-1);                // et cette fenêtre tout de suite (suit le défaut)
-        }
-        else if (r == 1200) p.learnTarget.store (-1);
-        else if (r == 1201) { p.resetMidiMap(); p.apvts.getParameter ("expression")->setValueNotifyingHost (0.0f);
-                             safe->setStatus ("MIDI assignments cleared"); }
-        else if (r >= 1000 && r < 1100)
-        {
-            const int t = (r - 1000) / 10, k = (r - 1000) % 10;
-            if (k == 0)      p.learnTarget.store (p.learnTarget.load() == t ? -1 : t);   // re-cliquer annule
-            else if (k == 1) { p.targetCC[(size_t) t].store (-1); if (t == P::kPitch) p.apvts.getParameter ("expression")->setValueNotifyingHost (0.0f);
-                               safe->setStatus (juce::String (P::getTargetName (t)) + ": MIDI cleared"); }
-            else             { p.assignCC (P::kPitch, ccs[k - 2]); safe->setStatus ("PITCH: CC " + juce::String (ccs[k - 2])); }
-        }
-        else if (r >= 21 && r <= 23)     setChoice ("pedalMode", r - 21);
-        else if (r >= 41 && r <= 43)     setChoice ("whammyRange", r - 41);
-        else if (r == 30) p.learnTarget.store (p.learnTarget.load() == P::kLearnFootswitch ? -1 : P::kLearnFootswitch);
-        else if (r == 50)
-        {
-            if (auto* prm = p.apvts.getParameter ("invert"))
-            {
-                const bool on = prm->getValue() < 0.5f;
-                prm->setValueNotifyingHost (on ? 1.0f : 0.0f);
-                safe->setStatus (on ? "MIDI pedal inverted" : "MIDI pedal normal");
-            }
-        }
-        else if (r == 31) p.footswitchCC.store (-1);
-        else if (r == 32) p.assignCC (P::kLearnFootswitch, 64);
-        else if (r == 33) p.assignCC (P::kLearnFootswitch, 80);
-    });
-}
+constexpr int FantomineAudioProcessorEditor::knobTarget[6];
 
 //==============================================================================
 FantomineAudioProcessorEditor::FantomineAudioProcessorEditor (FantomineAudioProcessor& p)
-    : AudioProcessorEditor (&p), proc (p), pedal (p)
+    : AudioProcessorEditor (&p), proc (p)
 {
-    // lu avant que les limites ne redimensionnent : taille choisie pour cette instance (projet) si elle existe,
-    // sinon (-1) taille par défaut des nouvelles fenêtres (clic droit > Plugin size > Default size (new windows))
-    const int savedIdx = juce::jlimit (-1, 2, proc.uiScaleIdx.load());
+    background = png (BinaryData::background_png, BinaryData::background_pngSize);
+    glowTitle  = png (BinaryData::glow_title_png, BinaryData::glow_title_pngSize);
+    titleOn    = png (BinaryData::title_on_png, BinaryData::title_on_pngSize);
+    titleOff   = png (BinaryData::title_off_png, BinaryData::title_off_pngSize);
+    glowLed    = png (BinaryData::glow_led_png, BinaryData::glow_led_pngSize);
+    ledOn      = png (BinaryData::led_on_png, BinaryData::led_on_pngSize);
+    fsRefl     = png (BinaryData::fs_refl_png, BinaryData::fs_refl_pngSize);
+    octHandle  = png (BinaryData::oct_handle_png, BinaryData::oct_handle_pngSize);
+    mediumFace  = Typeface::createSystemTypefaceFor (BinaryData::PoppinsMedium_ttf, BinaryData::PoppinsMedium_ttfSize);
+    boldFace    = Typeface::createSystemTypefaceFor (BinaryData::PoppinsBold_ttf, BinaryData::PoppinsBold_ttfSize);
+    regularFace = Typeface::createSystemTypefaceFor (BinaryData::PoppinsRegular_ttf, BinaryData::PoppinsRegular_ttfSize);
+    menuLnf.f = { regularFace, mediumFace, boldFace };
+    logo     = svg (BinaryData::NineHandsLogoWhite_svg, BinaryData::NineHandsLogoWhite_svgSize);
+    subtitle = svg (BinaryData::FantomineSubtitle_svg, BinaryData::FantomineSubtitle_svgSize);
+    if (subtitle != nullptr) subtitle->replaceColour (Colours::white, silk2);
+    buildPrint();
+    glow = (float) NineHandsGlow::percent (JucePlugin_Name) / 100.0f;
 
-    addAndMakeVisible (pedal);
-    pedal.onSizeRequest = [this] (int idx) { setScaleIndex (idx); };
-    pedal.getSizeIndex  = [this] { return getScaleIndex(); };
+    // potards nh::Knob (skill potards-nine-hands-dsp) : calques 512 px, repere au-dessus des reflets fixes
+    nh::Knob::Layers L;
+    L.shadow     = png (BinaryData::knob_shadow_png, BinaryData::knob_shadow_pngSize);
+    L.crown      = png (BinaryData::knob_crown_png, BinaryData::knob_crown_pngSize);
+    L.cap        = png (BinaryData::knob_cap_png, BinaryData::knob_cap_pngSize);
+    L.highlight  = png (BinaryData::knob_highlight_png, BinaryData::knob_highlight_pngSize);
+    L.markerOff  = png (BinaryData::knob_marker_off_png, BinaryData::knob_marker_off_pngSize);
+    L.markerOn   = png (BinaryData::knob_marker_on_png, BinaryData::knob_marker_on_pngSize);
+    L.markerGlow = png (BinaryData::knob_marker_glow_png, BinaryData::knob_marker_glow_pngSize);
+    nh::Knob::Style st;
+    st.hitRadius = layout::knobR * 1.05f / layout::knobLayer;
+    for (int i = 0; i < 6; ++i)
+    {
+        knobs[(size_t) i] = std::make_unique<nh::Knob> (*proc.apvts.getParameter (knobIds[i]), L, st);
+        auto* kn = knobs[(size_t) i].get();
+        kn->onRightClick = [this, i] (const MouseEvent&) { showContextMenu (knobTarget[i]); };
+        kn->onGestureStart = [this, i]
+        {
+            if (auto* prm = proc.apvts.getParameter (knobIds[i])) flash (String (knobNames[i]) + "   " + prm->getCurrentValueAsText());
+        };
+        addAndMakeVisible (*kn);
+        lastKnob[(size_t) i] = proc.apvts.getRawParameterValue (knobIds[i])->load();
+    }
 
-    // comme Ring Think : jamais plus petit que la taille par défaut, ratio verrouillé
+    // taille : 495 px de haut par defaut (« 60 % ») = taille minimale, proportions bloquees ;
+    // ouverture a la taille enregistree pour cette instance, sinon a la taille par defaut choisie dans le menu
+    const double aspect = (double) baseW / (double) baseH;
+    const int saved = proc.uiHeight.load();
+    const int h0 = saved > 0 ? jlimit (heightDefault, heightMax, saved)
+                             : sizeHeight (WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes));
     setResizable (true, true);
-    const int minW = (int) std::lround (ui::kRefW * ui::kDefaultScale);
-    setResizeLimits (minW, (int) std::lround ((double) minW * ui::kH / ui::kW),
-                     ui::kMaxW, (int) std::lround ((double) ui::kMaxW * ui::kH / ui::kW));
-    getConstrainer()->setFixedAspectRatio ((double) ui::kW / (double) ui::kH);
-    setOpaque (true);                      // anti-gel : l'hôte ne redessine jamais ce qui est derrière la fenêtre
-    setScaleIndex (savedIdx);
+    setResizeLimits (roundToInt (heightDefault * aspect), heightDefault, roundToInt (heightMax * aspect), heightMax);
+    getConstrainer()->setFixedAspectRatio (aspect);
+    setOpaque (true);                    // anti-gel : l'hote ne redessine jamais ce qui est derriere la fenetre
+    openHeight = h0;
+    setSize (roundToInt (h0 * aspect), h0);
     rebuildCaches();
 
-    lastTick = juce::Time::getMillisecondCounterHiRes();
+    const bool on = ! flag (proc, "bypass");
+    power = titleLevel = on ? 1.0f : 0.0f;
+    ledLevel = on ? 0.8f : 0.0f;
+    wasOn = on;
+    octAnim = (float) choice (proc, "octave");
+    lastOctave = choice (proc, "octave"); lastMode = choice (proc, "pedalMode"); lastWRange = choice (proc, "whammyRange");
+    lastBypass = ! on; lastHold = flag (proc, "hold"); lastInvert = flag (proc, "invert");
+    lastExp = proc.apvts.getRawParameterValue ("expression")->load();
+    lastPresetName = proc.getCurrentPresetName();
+    presetText = presetLine();
+    lastTickMs = Time::getMillisecondCounterHiRes();
     startTimerHz (30);
 }
 
-FantomineAudioProcessorEditor::~FantomineAudioProcessorEditor() { stopTimer(); }
+FantomineAudioProcessorEditor::~FantomineAudioProcessorEditor()
+{
+    PopupMenu::dismissAllActiveMenus();
+    stopTimer();
+}
 
 //==============================================================================
-// Anti-gel de la fenêtre (Windows) : JUCE 8+ dessine par défaut avec Direct2D (carte graphique).
-// Avec certains pilotes (Intel notamment) la fenêtre du plugin cesse de se rafraîchir alors que
-// le DAW continue de tourner. Le moteur logiciel est stable partout et largement assez rapide ici.
-//
-// Anti-gel v2 (NINE HANDS | DSP) :
-//  1. moteur de rendu logiciel forcé sur Windows, appliqué à chaque nouvelle fenêtre hôte (peer)
-//     et revérifié toutes les secondes, jamais en boucle ;
-//  2. aucun calcul lourd dans paint() : le fond mis à l'échelle est refait par le timer seulement,
-//     après stabilisation de la taille ou quand l'échelle d'affichage change (au plus toutes les 250 ms) ;
-//  3. chien de garde : si un redessin demandé n'est pas arrivé au bout de 1,5 s alors que la fenêtre
-//     est visible, le moteur de rendu est réappliqué et toute la fenêtre est redessinée ;
-//  4. côté audio : aucun appel à l'hôte ni verrou partagé depuis le thread audio (voir PluginProcessor).
+// Anti-gel v2 (NINE HANDS | DSP) : moteur logiciel sous Windows, caches refaits par le timer seulement,
+// chien de garde des redessins, aucun appel a l'hote depuis le thread audio (voir PluginProcessor).
 void FantomineAudioProcessorEditor::useSoftwareRenderer()
 {
     auto* peer = getPeer();
@@ -852,55 +163,158 @@ void FantomineAudioProcessorEditor::visibilityChanged()      { useSoftwareRender
 
 float FantomineAudioProcessorEditor::physicalScale() const
 {
-    return juce::jlimit (1.0f, 4.0f, (float) juce::Component::getApproximateScaleFactorForComponent (this));
+    if (forcedScale > 0.0f) return forcedScale;
+    return jlimit (1.0f, 4.0f, (float) Component::getApproximateScaleFactorForComponent (this));
+}
+
+void FantomineAudioProcessorEditor::askRepaint (Rectangle<float> u)
+{
+    if (repaintAskedMs <= 0.0) repaintAskedMs = Time::getMillisecondCounterHiRes();
+    repaint (u.transformedBy (AffineTransform::scale (k())).getSmallestIntegerContainer().expanded (2));
+}
+
+void FantomineAudioProcessorEditor::resized()
+{
+    // jamais de setSize ici ; taille de l'instance enregistree seulement si elle a ete changee
+    if (proc.uiHeight.load() > 0 || (openHeight > 0 && std::abs (getHeight() - openHeight) > 2))
+        proc.uiHeight.store (jlimit (heightDefault, heightMax, getHeight()));
+    const float s = k();
+    for (int i = 0; i < 6; ++i)
+        knobs[(size_t) i]->setBounds (Rectangle<float> (layout::knobLayer, layout::knobLayer).withCentre (layout::knobPos[i])
+                                          .transformedBy (AffineTransform::scale (s)).toNearestInt());
+    resizeSettle = 4;
+}
+
+int FantomineAudioProcessorEditor::sizeHeight (int idx)
+{
+    const int h[numSizes] = { heightDefault, height75, height100 };
+    return h[jlimit (0, numSizes - 1, idx)];
+}
+
+void FantomineAudioProcessorEditor::setWindowHeight (int h)
+{
+    h = jlimit (heightDefault, heightMax, h);
+    setSize (roundToInt ((double) h * baseW / baseH), h);
 }
 
 void FantomineAudioProcessorEditor::rebuildCaches (float sc)
 {
     if (sc <= 0.0f) sc = cacheScale > 0.0f ? cacheScale : physicalScale();
-    if (getWidth() <= 0) return;
-    cacheW = getWidth(); cacheScale = sc;
-    pedal.rebuildCache ((float) getWidth() / (float) ui::kW * sc);
+    const int w = getWidth(), h = getHeight();
+    if (w <= 0 || h <= 0) return;
+    if (w == cacheW && h == cacheH && std::abs (sc - cacheScale) < 0.01f && bgScaled.isValid()) return;
+    cacheW = w; cacheH = h; cacheScale = sc;
+    const int pw = roundToInt ((float) w * sc), ph = roundToInt ((float) h * sc);
+    bgScaled = (pw >= background.getWidth()) ? background : background.rescaled (pw, ph, Graphics::highResamplingQuality);
+    repaint();
 }
 
-void FantomineAudioProcessorEditor::resized()
+void FantomineAudioProcessorEditor::forceRenderScale (float sc)
 {
-    // anti-gel : jamais de setSize ici, les limites du constrainer suffisent
-    const float s = (float) getWidth() / (float) ui::kW;
-    pedal.setTransform (juce::AffineTransform::scale (s));
-    pedal.setBounds (0, 0, ui::kW, ui::kH);
-    resizeSettle = 4;              // le fond sera refait par le timer quand la taille ne bouge plus
+    forcedScale = sc;
+    cacheW = 0;
+    rebuildCaches (sc);
+    for (auto& kn : knobs) kn->setForcedScale (sc);
 }
 
-int FantomineAudioProcessorEditor::getScaleIndex() const
+void FantomineAudioProcessorEditor::setGlowPercent (int pc)
 {
-    const float s = (float) getWidth() / (float) ui::kRefW;
-    for (int i = 0; i < kNumSizes; ++i) if (std::abs (s - kScales[i]) < 0.02f) return i;
-    return -1;
+    NineHandsGlow::setPercent (JucePlugin_Name, pc);
+    glow = (float) jlimit (25, 100, pc) / 100.0f;
+    for (auto& kn : knobs) kn->setGlow (glow);
+    repaint();
 }
 
-// idx 0..2 = taille choisie pour cette instance (sauvegardée avec le projet) ;
-// -1 = cette instance suit la taille par défaut des nouvelles fenêtres
-void FantomineAudioProcessorEditor::setScaleIndex (int idx)
+void FantomineAudioProcessorEditor::settleForCapture()
 {
-    idx = juce::jlimit (-1, kNumSizes - 1, idx);
-    proc.uiScaleIdx = idx;
-    if (idx < 0) idx = WigaWindowSize::defaultIndex (JucePlugin_Name, kNumSizes);
-    const float s = kScales[idx];
-    const int w = (int) std::lround (ui::kRefW * s);
-    setSize (w, (int) std::lround ((double) w * ui::kH / ui::kW));
+    const bool on = ! flag (proc, "bypass");
+    power = titleLevel = on ? 1.0f : 0.0f;
+    flickerT = 1.0f;
+    ledLevel = on ? (flag (proc, "hold") ? 1.0f : 0.72f + 0.28f * jlimit (0.0f, 1.0f, proc.uiAmp.load() * 1.4f)) : 0.0f;
+    octAnim = proc.whammyActive.load() ? jlimit (0.0f, 2.0f, proc.uiOctave.load() + 1.0f) : (float) choice (proc, "octave");
+    ampSm = proc.uiAmp.load(); midiSm = proc.uiMidi.load(); expSm = proc.uiExpression.load();
+    presetText = presetLine();
+    statusAlpha = Time::getMillisecondCounterHiRes() < statusUntil ? 1.0f : 0.0f;
+    for (auto& kn : knobs) { kn->setLight (power); kn->setGlow (glow); kn->settle(); }
+    repaint();
 }
 
+//==============================================================================
+// Serigraphie vectorielle (Poppins), construite une fois en chemins (unites du plugin)
+//==============================================================================
+void FantomineAudioProcessorEditor::buildPrint()
+{
+    namePath.clear(); printPath.clear();
+    for (int i = 0; i < 6; ++i)
+    {
+        const auto c = layout::knobPos[i];
+        namePath.addPath (textPath (knobNames[i], mediumFace, 21.0f, { c.x, layout::knobLabelY }));
+        printPath.addPath (textPath (String::fromUTF8 (knobMin[i]), regularFace, 13.5f, { c.x - layout::knobMinMaxDX, layout::knobMinMaxY }));
+        printPath.addPath (textPath (String::fromUTF8 (knobMax[i]), regularFace, 13.5f, { c.x + layout::knobMinMaxDX, layout::knobMinMaxY }));
+        for (int t = 0; t < 11; ++t)          // 11 graduations de -135 a +135 degres
+        {
+            const float a = degreesToRadians (-225.0f + 27.0f * (float) t);
+            const Point<float> d (std::cos (a), std::sin (a));
+            Path seg; seg.startNewSubPath (c + d * layout::tickR0); seg.lineTo (c + d * layout::tickR1);
+            Path stroked;
+            PathStrokeType (1.6f, PathStrokeType::curved, PathStrokeType::butt).createStrokedPath (stroked, seg);
+            printPath.addPath (stroked);
+        }
+    }
+    namePath.addPath (textPath ("OCTAVE", mediumFace, 18.0f, layout::octLabel));
+    printPath.addPath (textPath (String::fromUTF8 ("\xe2\x88\x92" "1"), regularFace, 16.5f, layout::octM1));
+    printPath.addPath (textPath ("+1", regularFace, 16.5f, layout::octP1));
+    printPath.addPath (textPath ("0", regularFace, 15.0f, layout::octZero));
+    printPath.addPath (textPath (String::fromUTF8 ("BYPASS  \xc2\xb7  HOLD"), mediumFace, 15.0f, layout::bypassLabel));
+    const float hp = MathConstants<float>::halfPi;
+    printPath.addPath (textPath ("OUT", mediumFace, 13.0f, { layout::jackLabelL, layout::jackOutY }, -hp));
+    printPath.addPath (textPath ("IN",  mediumFace, 13.0f, { layout::jackLabelR, layout::jackInY }, hp));
+    printPath.addPath (textPath ("EXP", mediumFace, 13.0f, { layout::jackLabelR, layout::jackExpY }, hp));
+}
+
+//==============================================================================
+juce::String FantomineAudioProcessorEditor::presetLine() const
+{
+    auto n = proc.getCurrentPresetName();
+    if (proc.presetDirty.load()) n << " *";
+    return n;
+}
+
+void FantomineAudioProcessorEditor::flash (const String& t, double seconds)
+{
+    statusText = t;
+    statusUntil = Time::getMillisecondCounterHiRes() + seconds * 1000.0;
+}
+
+void FantomineAudioProcessorEditor::setChoice (const char* id, int v)
+{
+    if (auto* prm = proc.apvts.getParameter (id))
+    {
+        prm->beginChangeGesture();
+        prm->setValueNotifyingHost (prm->convertTo0to1 ((float) v));
+        prm->endChangeGesture();
+    }
+}
+
+Rectangle<float> FantomineAudioProcessorEditor::modeArea() const
+{
+    const auto s = layout::screen;
+    return { s.getX() + 16.0f, s.getY() + 12.0f, 80.0f, 23.0f };
+}
+
+Rectangle<float> FantomineAudioProcessorEditor::expArea() const
+{
+    const auto s = layout::screen;
+    return { s.getRight() - 45.0f, s.getY() + 28.0f, 30.0f, s.getHeight() - 39.0f };
+}
+
+//==============================================================================
 void FantomineAudioProcessorEditor::timerCallback()
 {
-    const double now = juce::Time::getMillisecondCounterHiRes();
-    const float dt = (float) juce::jlimit (0.0, 0.1, (now - lastTick) / 1000.0);
-    lastTick = now;
-
-    // moteur logiciel : seulement si la fenêtre hôte a changé, ou au plus une fois par seconde
+    const double now = Time::getMillisecondCounterHiRes();
+    const float dt = (float) jlimit (0.0, 0.1, (now - lastTickMs) / 1000.0);
+    lastTickMs = now;
     if (getPeer() != lastPeer || now - lastRendererCheckMs > 1000.0) { lastRendererCheckMs = now; useSoftwareRenderer(); }
-
-    // caches : reconstruits ici seulement (jamais dans paint)
     if (resizeSettle > 0 && --resizeSettle == 0) rebuildCaches();
     else if (resizeSettle == 0 && now - lastScaleCheckMs > 250.0)
     {
@@ -908,16 +322,642 @@ void FantomineAudioProcessorEditor::timerCallback()
         const float sc = physicalScale();
         if (std::abs (sc - cacheScale) > 0.01f) rebuildCaches (sc);
     }
-
-    // chien de garde : un redessin demandé n'arrive pas -> on relance le moteur de rendu et on redessine tout
-    if (pedal.repaintAskedMs > 0.0 && isShowing() && now - pedal.repaintAskedMs > 1500.0 && pedal.lastPaintMs < pedal.repaintAskedMs)
+    if (repaintAskedMs > 0.0 && isShowing() && now - repaintAskedMs > 1500.0 && lastPaintMs < repaintAskedMs)
     {
-        pedal.repaintAskedMs = 0.0;
-        lastPeer = nullptr;
-        useSoftwareRenderer();
-        repaint();
-        pedal.repaint();
+        repaintAskedMs = 0.0; lastPeer = nullptr;
+        useSoftwareRenderer(); repaint();
+    }
+    if (now - lastGlowReadMs > 3000.0 && resizeSettle == 0)
+    {
+        lastGlowReadMs = now;
+        glow = (float) NineHandsGlow::percent (JucePlugin_Name) / 100.0f;     // reglage commun a toutes les fenetres
     }
 
-    pedal.tick (dt);
+    // ---- reglages qui changent (souris, automation, MIDI) -> ligne d'etat ; chargement de preset -> barre seulement
+    const auto pn = proc.getCurrentPresetName();
+    const bool presetLoaded = pn != lastPresetName || (! proc.presetDirty.load() && dPresetText.endsWith (" *"));
+    lastPresetName = pn;
+    for (int i = 0; i < 6; ++i)
+    {
+        const float v = proc.apvts.getRawParameterValue (knobIds[i])->load();
+        if (std::abs (v - lastKnob[(size_t) i]) > 1.0e-5f && ! presetLoaded)
+            if (auto* prm = proc.apvts.getParameter (knobIds[i])) flash (String (knobNames[i]) + "   " + prm->getCurrentValueAsText());
+        lastKnob[(size_t) i] = v;
+    }
+    const int oct = choice (proc, "octave"), mode = choice (proc, "pedalMode"), wr = choice (proc, "whammyRange");
+    const bool bypass = flag (proc, "bypass"), hold = flag (proc, "hold"), inv = flag (proc, "invert");
+    const float exp = proc.apvts.getRawParameterValue ("expression")->load();
+    if (! presetLoaded)
+    {
+        if (oct != lastOctave) { const char* t[] = { "OCTAVE  -1", "OCTAVE  0", "OCTAVE  +1" }; flash (t[jlimit (0, 2, oct)]); }
+        if (mode != lastMode)  { const char* t[] = { "PEDAL  UP", "PEDAL  DOWN", "PEDAL  BIPOLAR" }; flash (t[jlimit (0, 2, mode)]); }
+    }
+    if (wr != lastWRange) { const char* t[] = { "WHAMMY  -1 > +1 oct", "WHAMMY  0 > +1 oct", "WHAMMY  0 > -1 oct" }; flash (t[jlimit (0, 2, wr)]); }
+    if (bypass != lastBypass) flash (bypass ? "BYPASS" : "EFFECT ON", 1.6);
+    if (hold != lastHold)     flash (hold ? "HOLD  -  tap to release" : "HOLD released", hold ? 3.0 : 1.6);
+    if (inv != lastInvert)    flash (inv ? "MIDI pedal inverted" : "MIDI pedal normal");
+    if (std::abs (exp - lastExp) > 0.004f && lastExp >= 0.0f) flash ("EXP   " + String (roundToInt (exp * 100.0f)) + " %");
+    lastOctave = oct; lastMode = mode; lastWRange = wr; lastBypass = bypass; lastHold = hold; lastInvert = inv; lastExp = exp;
+
+    const bool whammy = proc.whammyActive.load();
+    const float uo = proc.uiOctave.load();
+    if (whammy && std::abs (uo - lastOct) > 0.004f)
+        flash ("OCTAVE  " + String (uo >= 0 ? "+" : "") + String (uo * 12.0f, 1) + " st");
+    lastOct = uo;
+
+    if (const int lt = proc.learnTarget.load(); lt >= 0)
+        flash (String::fromUTF8 ("MIDI LEARN  \xc2\xb7  ") + P::getTargetName (lt), 0.25);
+    if (const int learned = proc.lastLearned.exchange (-1); learned >= 0)
+    {
+        const int cc = learned == P::kLearnFootswitch ? proc.footswitchCC.load() : proc.targetCC[(size_t) learned].load();
+        flash (String (P::getTargetName (learned)) + " = CC " + String (cc));
+    }
+
+    const float st = now < statusUntil ? 1.0f : 0.0f;
+    statusAlpha += (st - statusAlpha) * (st > statusAlpha ? 0.45f : 0.30f);      // ~120 ms a l'apparition, ~300 ms au retour
+    if (statusAlpha < 0.005f) statusAlpha = 0.0f;
+    if (statusAlpha > 0.995f) statusAlpha = 1.0f;
+    presetText = presetLine();
+
+    // ---- lumieres : extinction rapide, allumage plus doux, petit scintillement du neon a l'allumage
+    const bool on = ! bypass;
+    const float target = on ? 1.0f : 0.0f;
+    power += (target - power) * jmin (1.0f, dt * (on ? 9.0f : 14.0f));
+    if (std::abs (target - power) < 0.003f) power = target;
+    if (on && ! wasOn) flickerT = 0.0f;
+    wasOn = on;
+    flickerT = jmin (1.0f, flickerT + dt);
+    float tl = power;
+    if (on && flickerT < 0.35f && ((flickerT > 0.04f && flickerT < 0.08f) || (flickerT > 0.15f && flickerT < 0.19f))) tl *= 0.25f;
+    titleLevel = tl;
+    ledPulse += dt;
+    float led = 0.0f;
+    if (on)
+        led = hold ? 0.55f + 0.45f * (0.5f + 0.5f * std::sin (ledPulse * MathConstants<float>::twoPi * 1.2f))
+                   : 0.72f + 0.28f * jlimit (0.0f, 1.0f, proc.uiAmp.load() * 1.4f);
+    ledLevel += (led * power - ledLevel) * jmin (1.0f, dt * 20.0f);
+    if (ledLevel < 0.003f) ledLevel = 0.0f;
+    for (auto& kn : knobs) { kn->setLight (power); kn->setGlow (glow); }
+
+    // levier : 3 positions, ou suivi continu quand une pedale le pilote (whammy)
+    const float op = whammy ? jlimit (0.0f, 2.0f, uo + 1.0f) : (float) oct;
+    octAnim += (op - octAnim) * jmin (1.0f, dt * (whammy ? 30.0f : 22.0f));
+    if (std::abs (op - octAnim) < 0.002f) octAnim = op;
+    const float press = proc.footswitchPressed.load() ? 1.0f : 0.0f;
+    footAnim += (press - footAnim) * jmin (1.0f, dt * 30.0f);
+    if (std::abs (press - footAnim) < 0.01f) footAnim = press;
+
+    // ecran : voix fantome animee quand la pedale est allumee
+    ampSm  += (proc.uiAmp.load() - ampSm) * jmin (1.0f, dt * 12.0f);
+    midiSm += (proc.uiMidi.load() - midiSm) * jmin (1.0f, dt * 20.0f);
+    expSm  += (proc.uiExpression.load() - expSm) * jmin (1.0f, dt * 25.0f);
+    phase  += dt * 1.6f;
+    if (proc.midiActivity.exchange (0.0f) > 0.0f) midiBlink = 1.0f;
+    midiBlink = jmax (0.0f, midiBlink - dt * 4.0f);
+
+    // ---- redessins limites a ce qui change
+    auto changed = [] (float& drawn, float v) { if (std::abs (drawn - v) < 0.003f) return false; drawn = v; return true; };
+    const bool glowChanged = changed (dGlow, glow);
+    if (changed (dTitle, titleLevel) || glowChanged) askRepaint (layout::glowTitle);
+    if (changed (dLed, ledLevel) || glowChanged)
+    {
+        askRepaint (layout::glowLed);
+        askRepaint (Rectangle<float> (layout::fsS, layout::fsS).withCentre (layout::fsPos));
+    }
+    if (changed (dFoot, footAnim)) askRepaint (Rectangle<float> (layout::fsS, layout::fsS).withCentre (layout::fsPos));
+    if (changed (dOct, octAnim)) askRepaint (layout::octSlot.getUnion (layout::octHandle.expanded (layout::octTravel + 4.0f, 4.0f)));
+    const bool learn = proc.learnTarget.load() >= 0;
+    if (power > 0.003f || changed (dPower, power) || hold != dHold || learn != dLearn)
+    {
+        dHold = hold; dLearn = learn; dPower = power;
+        askRepaint (layout::screen.expanded (2.0f));
+    }
+    if (changed (dStatus, statusAlpha) || statusText != dStatusText || presetText != dPresetText || hover != dHover)
+    {
+        dStatusText = statusText; dPresetText = presetText; dHover = hover;
+        askRepaint (layout::presetRect.expanded (3.0f));
+    }
+}
+
+//==============================================================================
+void FantomineAudioProcessorEditor::paint (Graphics& g)
+{
+    lastPaintMs = Time::getMillisecondCounterHiRes();
+    repaintAskedMs = 0.0;
+    g.fillAll (Colour (0xff111112));          // derriere les jacks : le fond de l'image est transparent
+    const Image& bg = bgScaled.isValid() ? bgScaled : background;
+    g.setImageResamplingQuality (&bg == &background ? Graphics::highResamplingQuality : Graphics::lowResamplingQuality);
+    if (bg.isValid()) g.drawImage (bg, getLocalBounds().toFloat());
+
+    g.addTransform (AffineTransform::scale (k()));
+    g.setImageResamplingQuality (Graphics::mediumResamplingQuality);
+    drawTitle (g);
+    drawPrint (g);
+    drawLights (g);
+    drawOctave (g);
+    drawScreen (g);
+    drawBar (g);
+}
+
+void FantomineAudioProcessorEditor::drawTitle (Graphics& g)
+{
+    // tube de verre (ombre + biseau) toujours la, halo menthe dose par Glow, tube allume (jamais dose)
+    const auto r = layout::glowTitle;
+    if (titleOff.isValid()) g.drawImage (titleOff, r);
+    if (titleLevel > 0.003f)
+    {
+        g.setOpacity (jmin (1.0f, titleLevel * glow)); g.drawImage (glowTitle, r);
+        g.setOpacity (jmin (1.0f, titleLevel));        g.drawImage (titleOn, r);
+        g.setOpacity (1.0f);
+    }
+    if (subtitle != nullptr)              // coordonnees du viewBox 3000 x 1000 posees dans la boite du logo
+        subtitle->draw (g, 1.0f, AffineTransform::scale (layout::brand.getWidth() / 3000.0f).translated (layout::brand.getX(), layout::brand.getY()));
+}
+
+void FantomineAudioProcessorEditor::drawPrint (Graphics& g)
+{
+    g.setColour (silk2); g.fillPath (printPath);
+    g.setColour (silk);  g.fillPath (namePath);
+    if (logo != nullptr)
+    {
+        const auto vb = logo->getDrawableBounds();
+        const float w = layout::logoW, h = w * vb.getHeight() / jmax (1.0f, vb.getWidth());
+        logo->drawWithin (g, { layout::logoPos.x - w * 0.5f, layout::logoPos.y - h * 0.5f, w, h }, RectanglePlacement::centred, 0.92f);
+    }
+}
+
+void FantomineAudioProcessorEditor::drawLights (Graphics& g)
+{
+    auto layer = [&] (const Image& im, Rectangle<float> r, float level)
+    {
+        if (level <= 0.003f || ! im.isValid()) return;
+        g.setOpacity (jmin (1.0f, level)); g.drawImage (im, r);
+        g.setOpacity (1.0f);
+    };
+    const auto fsR = Rectangle<float> (layout::fsS, layout::fsS).withCentre (layout::fsPos);
+    // footswitch enfonce : le chapeau s'assombrit et son ombre interne s'elargit
+    if (footAnim > 0.01f)
+    {
+        const auto c = layout::fsPos; const float r = layout::footR * 0.98f;
+        g.setColour (Colours::black.withAlpha (0.22f * footAnim));
+        g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
+        ColourGradient sh (Colours::black.withAlpha (0.0f), c.x, c.y, Colours::black.withAlpha (0.38f * footAnim), c.x + r, c.y, true);
+        g.setGradientFill (sh);
+        g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
+    }
+    layer (fsRefl, fsR, ledLevel * 0.55f * (0.4f + 0.6f * glow));     // reflet de la LED dans le chrome
+    layer (glowLed, layout::glowLed, ledLevel * glow * 0.7f);                 // lumiere portee sur la facade (dosee)
+    const float hs = layout::ledS * 0.5f;
+    layer (ledOn, { layout::ledPos.x - hs, layout::ledPos.y - hs, hs * 2.0f, hs * 2.0f }, ledLevel);
+}
+
+void FantomineAudioProcessorEditor::drawOctave (Graphics& g)
+{
+    if (! octHandle.isValid()) return;
+    const float dx = (octAnim - 1.0f) * layout::octTravel;
+    g.setImageResamplingQuality (Graphics::highResamplingQuality);
+    g.drawImage (octHandle, layout::octHandle.translated (dx, 0.0f));
+    g.setImageResamplingQuality (Graphics::mediumResamplingQuality);
+}
+
+void FantomineAudioProcessorEditor::drawScreen (Graphics& g)
+{
+    const float on = power;
+    if (on < 0.01f) return;                       // bypass : ecran eteint, seule la vitre du visuel reste
+    const auto s = layout::screen;
+    Graphics::ScopedSaveState ss (g);
+    Path clip; clip.addRoundedRectangle (s, 10.0f);
+    g.reduceClipRegion (clip);
+
+    // trame
+    g.setColour (mint.withAlpha (0.045f * on));
+    for (float y = s.getY() + 8.0f; y < s.getBottom() - 4.0f; y += 7.5f)
+        g.fillRect (Rectangle<float> (s.getX() + 8.0f, y, s.getWidth() - 58.0f, 0.6f));
+
+    // voix fantome : forme d'onde reelle (harmoniques du moteur), trois passes lumineuses
+    const auto h = proc.getHarmonicsSnapshot();
+    const float x0 = s.getX() + 16.0f, x1 = s.getRight() - 60.0f, cy = s.getY() + s.getHeight() * 0.52f;
+    const float cycles = jlimit (1.5f, 5.0f, 1.6f + (midiSm - 36.0f) / 14.0f);
+    const float amp = 36.0f * jlimit (0.04f, 1.0f, ampSm * 1.3f);
+    double norm = 0.0; for (auto a : h) norm += a; norm = jmax (1e-6, norm);
+    Path wave; bool first = true;
+    for (float x = x0; x <= x1; x += 1.5f)
+    {
+        const float t = (x - x0) / (x1 - x0);
+        const float th = MathConstants<float>::twoPi * (t * cycles - phase);
+        double v = 0.0;
+        for (size_t i = 0; i < h.size(); ++i) v += h[i] * std::sin ((double) (i + 1) * th);
+        const float y = cy - amp * std::sin (MathConstants<float>::pi * t) * (float) (v / norm) * 1.6f;
+        if (first) { wave.startNewSubPath (x, y); first = false; } else wave.lineTo (x, y);
+    }
+    g.setColour (mint.withAlpha (0.10f * on * glow)); g.strokePath (wave, PathStrokeType (12.0f, PathStrokeType::curved, PathStrokeType::rounded));
+    g.setColour (mint.withAlpha (0.24f * on * glow)); g.strokePath (wave, PathStrokeType (6.0f, PathStrokeType::curved, PathStrokeType::rounded));
+    g.setColour (mint.withAlpha (0.96f * on));        g.strokePath (wave, PathStrokeType (2.2f, PathStrokeType::curved, PathStrokeType::rounded));
+
+    // sens de la pedale (clic = change)
+    const auto ma = modeArea();
+    const char* modes[] = { "UP", "DOWN", "BIPOLAR" };
+    g.setColour (scrTeal.withAlpha ((hover == Hit::mode ? 1.0f : 0.85f) * on));
+    g.drawRoundedRectangle (ma, ma.getHeight() * 0.5f, 1.2f);
+    g.setFont (Font (FontOptions (mediumFace).withPointHeight (15.0f)));
+    g.setColour (scrText.withAlpha (on));
+    g.drawText (modes[jlimit (0, 2, choice (proc, "pedalMode"))], ma.translated (0.0f, 0.5f), Justification::centred);
+
+    // activite MIDI
+    g.setColour (mint.withAlpha ((0.35f + 0.65f * midiBlink) * on));
+    g.fillEllipse (s.getRight() - 74.0f, s.getY() + 19.0f, 8.0f, 8.0f);
+
+    // pedale d'expression (glisser = la piloter a la souris)
+    const auto ea = expArea();
+    g.setFont (Font (FontOptions (mediumFace).withPointHeight (13.0f)));
+    g.setColour (scrTeal.withAlpha (on));
+    g.drawText ("EXP", Rectangle<float> (ea.getX() - 8.0f, s.getY() + 7.0f, ea.getWidth() + 16.0f, 18.0f), Justification::centred);
+    g.setColour (scrEdge.withAlpha ((hover == Hit::exp ? 1.0f : 0.85f) * on));
+    g.drawRoundedRectangle (ea, 6.0f, 1.2f);
+    auto fill = ea.reduced (3.5f);
+    fill = fill.withTop (fill.getBottom() - fill.getHeight() * jlimit (0.0f, 1.0f, expSm));
+    if (fill.getHeight() > 0.5f)
+    {
+        ColourGradient eg (mint.withAlpha (0.95f * on), fill.getX(), ea.getY(), mint.withAlpha (0.55f * on), fill.getX(), ea.getBottom(), false);
+        g.setGradientFill (eg);
+        g.fillRoundedRectangle (fill, 3.5f);
+    }
+
+    // note jouee
+    if (proc.uiNote.load())
+    {
+        int cents = 0;
+        const auto nn = noteName (midiSm, cents);
+        const Font nf (FontOptions (mediumFace).withPointHeight (30.0f));
+        g.setFont (nf);
+        g.setColour (scrText.withAlpha (on));
+        const float ny = s.getBottom() - 22.0f;
+        g.drawText (nn, Rectangle<float> (x0, ny - 22.0f, 120.0f, 44.0f), Justification::centredLeft);
+        const float nx = x0 + GlyphArrangement::getStringWidth (nf, nn) + 12.0f;
+        g.setFont (Font (FontOptions (regularFace).withPointHeight (16.0f)));
+        g.setColour (scrTeal.withAlpha (on));
+        g.drawText ((cents >= 0 ? "+" : "") + String (cents) + String::fromUTF8 (" \xc2\xa2"),
+                    Rectangle<float> (nx, ny - 12.0f + 2.0f, 100.0f, 24.0f), Justification::centredLeft);
+    }
+
+    // etiquettes d'etat
+    const bool learn = proc.learnTarget.load() >= 0;
+    if (learn || flag (proc, "hold"))
+    {
+        g.setFont (Font (FontOptions (boldFace).withPointHeight (12.5f)));
+        g.setColour (violet.withAlpha (on));
+        g.drawText (learn ? "LEARN" : "HOLD", Rectangle<float> (ea.getX() - 110.0f, s.getBottom() - 30.0f, 100.0f, 18.0f), Justification::centredRight);
+    }
+}
+
+void FantomineAudioProcessorEditor::drawBar (Graphics& g)
+{
+    // pastille unique (400 x 38, reference Strong Pickle) : barre de presets au repos, ligne d'etat pendant les reglages
+    const auto r = layout::presetRect;
+    const bool barHot = hover == Hit::presetPrev || hover == Hit::presetName || hover == Hit::presetNext;
+    g.setColour (barRim);
+    g.fillRoundedRectangle (r.expanded (1.5f), r.getHeight() * 0.5f + 1.5f);
+    g.setColour (barFill);
+    g.fillRoundedRectangle (r, r.getHeight() * 0.5f);
+    g.setColour (barEdge.brighter (barHot && statusAlpha <= 0.0f ? 0.6f : 0.0f));
+    g.drawRoundedRectangle (r.reduced (0.3f), r.getHeight() * 0.5f, 0.6f);
+    g.setFont (Font (FontOptions (mediumFace).withPointHeight (layout::presetFont)));
+    if (statusAlpha > 0.0f)
+    {
+        g.setColour (barInk.withAlpha (statusAlpha));
+        g.drawFittedText (statusText, r.reduced (r.getHeight() * 0.5f, 0.0f).toNearestInt(), Justification::centred, 1, 0.6f);
+    }
+    const float a = 1.0f - statusAlpha;
+    if (a <= 0.0f) return;
+    auto arrow = [&] (Rectangle<float> ar, bool left, bool hot)
+    {
+        Path p; const auto c = ar.getCentre(); const float sz = 5.5f;
+        if (left) p.addTriangle (c.x + sz * 0.6f, c.y - sz, c.x + sz * 0.6f, c.y + sz, c.x - sz * 0.9f, c.y);
+        else      p.addTriangle (c.x - sz * 0.6f, c.y - sz, c.x - sz * 0.6f, c.y + sz, c.x + sz * 0.9f, c.y);
+        g.setColour (barInk.withAlpha ((hot ? 1.0f : 0.6f) * a));
+        g.fillPath (p);
+    };
+    arrow (r.withWidth (arrowW), true, hover == Hit::presetPrev);
+    arrow (r.withTrimmedLeft (r.getWidth() - arrowW), false, hover == Hit::presetNext);
+    g.setColour (barInk.withAlpha ((hover == Hit::presetName ? 1.0f : 0.92f) * a));
+    g.drawFittedText (presetText, r.reduced (arrowW, 0.0f).toNearestInt(), Justification::centred, 1, 0.7f);
+}
+
+//==============================================================================
+// Souris
+//==============================================================================
+FantomineAudioProcessorEditor::Hit FantomineAudioProcessorEditor::hitAt (Point<float> u) const
+{
+    if (layout::octSlot.expanded (6.0f, 14.0f).contains (u)) return Hit::octave;
+    if (u.getDistanceFrom (layout::fsPos) <= layout::fsFlats * 0.62f) return Hit::foot;
+    if (modeArea().expanded (4.0f).contains (u)) return Hit::mode;
+    if (expArea().expanded (8.0f, 6.0f).contains (u)) return Hit::exp;
+    if (layout::screen.contains (u)) return Hit::screen;
+    const auto r = layout::presetRect;
+    if (r.contains (u))
+        return u.x < r.getX() + arrowW ? Hit::presetPrev : (u.x > r.getRight() - arrowW ? Hit::presetNext : Hit::presetName);
+    return Hit::none;
+}
+
+void FantomineAudioProcessorEditor::mouseMove (const MouseEvent& e)
+{
+    hover = hitAt (toUnits (e.position));
+    setMouseCursor (hover == Hit::none || hover == Hit::screen ? MouseCursor::NormalCursor
+                  : hover == Hit::exp ? MouseCursor::UpDownResizeCursor : MouseCursor::PointingHandCursor);
+}
+
+void FantomineAudioProcessorEditor::mouseExit (const MouseEvent&) { hover = Hit::none; }
+
+void FantomineAudioProcessorEditor::setOctaveFromX (float ux)
+{
+    const float c = layout::octHandle.getCentreX();
+    const int pos = ux < c - layout::octTravel * 0.5f ? 0 : (ux > c + layout::octTravel * 0.5f ? 2 : 1);
+    if (proc.whammyActive.load())
+    {
+        proc.whammyActive.store (false);          // le levier reprend la main sur la pedale
+        if (pos == choice (proc, "octave")) { const char* t[] = { "OCTAVE  -1", "OCTAVE  0", "OCTAVE  +1" }; flash (t[pos]); }
+    }
+    if (pos != choice (proc, "octave")) setChoice ("octave", pos);
+}
+
+void FantomineAudioProcessorEditor::setExpressionFromY (float uy)
+{
+    const auto ea = expArea().reduced (3.5f);
+    const float v = jlimit (0.0f, 1.0f, (ea.getBottom() - uy) / ea.getHeight());
+    if (auto* prm = proc.apvts.getParameter ("expression")) prm->setValueNotifyingHost (v);
+}
+
+void FantomineAudioProcessorEditor::mouseDown (const MouseEvent& e)
+{
+    const auto u = toUnits (e.position);
+    const auto h = hitAt (u);
+    if (e.mods.isPopupMenu())
+    {
+        // clic droit sur une commande : son MIDI Learn en tete du menu
+        showContextMenu (h == Hit::octave ? P::kOctave : h == Hit::foot ? P::kLearnFootswitch
+                         : h == Hit::mode ? P::kPedalMode : (h == Hit::exp || h == Hit::screen) ? P::kPitch : -1);
+        return;
+    }
+    if (statusAlpha > 0.0f && layout::presetRect.contains (u))
+    {   // la ligne d'etat ne bloque pas : un clic fait revenir la barre de presets
+        statusUntil = 0.0;
+        return;
+    }
+    dragging = Hit::none;
+    switch (h)
+    {
+        case Hit::octave: dragging = Hit::octave; setOctaveFromX (u.x); break;
+        case Hit::foot:   footHeld = true; proc.footswitchDown(); break;
+        case Hit::mode:   setChoice ("pedalMode", (choice (proc, "pedalMode") + 1) % 3); break;
+        case Hit::exp:
+            dragging = Hit::exp;
+            if (auto* prm = proc.apvts.getParameter ("expression")) prm->beginChangeGesture();
+            setExpressionFromY (u.y);
+            break;
+        case Hit::presetPrev: stepPreset (-1); break;
+        case Hit::presetNext: stepPreset (1); break;
+        case Hit::presetName: showPresetMenu(); break;
+        case Hit::screen: case Hit::none: break;
+    }
+}
+
+void FantomineAudioProcessorEditor::mouseDrag (const MouseEvent& e)
+{
+    const auto u = toUnits (e.position);
+    if (dragging == Hit::octave) setOctaveFromX (u.x);
+    else if (dragging == Hit::exp) setExpressionFromY (u.y);
+}
+
+void FantomineAudioProcessorEditor::mouseUp (const MouseEvent& e)
+{
+    if (dragging == Hit::exp)
+        if (auto* prm = proc.apvts.getParameter ("expression")) prm->endChangeGesture();
+    dragging = Hit::none;
+    if (footHeld && ! e.mods.isPopupMenu()) proc.footswitchUp();
+    footHeld = false;
+}
+
+void FantomineAudioProcessorEditor::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& w)
+{
+    const auto h = hitAt (toUnits (e.position));
+    const float step = (std::abs (w.deltaY) > 1.0e-6f ? w.deltaY : w.deltaX) * (w.isReversed ? -1.0f : 1.0f);
+    if (std::abs (step) < 1.0e-6f) return;
+    if (h == Hit::octave)
+    {
+        proc.whammyActive.store (false);
+        setChoice ("octave", jlimit (0, 2, choice (proc, "octave") + (step > 0 ? 1 : -1)));
+    }
+    else if (h == Hit::exp)
+        if (auto* prm = proc.apvts.getParameter ("expression"))
+            prm->setValueNotifyingHost (jlimit (0.0f, 1.0f, prm->getValue() + step * 0.05f));
+}
+
+//==============================================================================
+// Presets
+//==============================================================================
+void FantomineAudioProcessorEditor::stepPreset (int delta)
+{
+    const int n = proc.getNumPrograms();
+    proc.setCurrentProgram ((proc.getCurrentProgram() + delta + n) % n);
+    proc.updateHostDisplay (AudioProcessor::ChangeDetails().withProgramChanged (true));
+}
+
+void FantomineAudioProcessorEditor::showPresetMenu()
+{
+    PopupMenu m;
+    m.setLookAndFeel (&menuLnf);
+    NineHandsMenu::addHeader (m, menuLnf.f, NineHandsMenu::icoPreset, menuAccent, "Presets", presetLine());
+    m.addSectionHeader ("Factory presets");
+    const auto& fp = P::getFactoryPresets();
+    for (int i = 0; i < (int) fp.size(); ++i)
+        m.addItem (100 + i, String (i + 1) + ". " + fp[(size_t) i].name, true,
+                   proc.getCurrentProgram() == i && proc.getCurrentPresetName() == fp[(size_t) i].name);
+    m.addSeparator();
+    PopupMenu load, save;
+    for (int s = 1; s <= 9; ++s)
+    {
+        const bool used = proc.isUserSlotUsed (s);
+        load.addItem (200 + s, "User " + String (s) + (used ? "  " + proc.getUserSlotName (s) : String ("  (empty)")), used);
+        save.addItem (300 + s, "User " + String (s) + (used ? "  " + proc.getUserSlotName (s) + "  (overwrite)" : String()));
+    }
+    m.addSubMenu ("Load user preset", load);
+    m.addSubMenu ("Save user preset", save);
+    const auto area = layout::presetRect.transformedBy (AffineTransform::scale (k())).getSmallestIntegerContainer();
+    m.showMenuAsync (PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (area)),
+        [safe = Component::SafePointer<FantomineAudioProcessorEditor> (this)] (int r)
+        {
+            if (safe == nullptr || r == 0) return;
+            auto& pr = safe->proc;
+            if (r >= 100 && r < 200)
+            {
+                pr.setCurrentProgram (r - 100);
+                pr.updateHostDisplay (AudioProcessor::ChangeDetails().withProgramChanged (true));
+            }
+            else if (r > 200 && r < 300) pr.loadUserPreset (r - 200);
+            else if (r > 300 && r < 400) { pr.saveUserPreset (r - 300); safe->flash ("Saved  User " + String (r - 300)); }
+        });
+}
+
+//==============================================================================
+// Menu clic droit (design d'Octopus, NineHandsMenu.h), toujours ouvert a l'endroit du clic
+//==============================================================================
+void FantomineAudioProcessorEditor::showContextMenu (int focus)
+{
+    using namespace NineHandsMenu;
+    PopupMenu menu;
+    menu.setLookAndFeel (&menuLnf);
+    auto ccOf = [this] (int t) { return t == P::kLearnFootswitch ? proc.footswitchCC.load() : proc.targetCC[(size_t) t].load(); };
+    auto ccText = [] (int cc) { return cc >= 0 ? "CC " + String (cc) : String ("not assigned"); };
+    const int lt = proc.learnTarget.load();
+
+    if (focus >= 0)
+    {
+        const String name = String (P::getTargetName (focus)).toLowerCase();
+        const String title = name.substring (0, 1).toUpperCase() + name.substring (1);
+        const int ico = focus == P::kLearnFootswitch ? icoPedal : focus == P::kOctave ? icoSwitch
+                      : (focus == P::kPitch || focus == P::kPedalMode) ? icoMidi : icoKnob;
+        addHeader (menu, menuLnf.f, ico, menuAccent, focus == P::kPitch ? String ("Pitch pedal") : title, "MIDI: " + ccText (ccOf (focus)));
+        const int learnId = focus == P::kLearnFootswitch ? 30 : 1000 + focus * 10;
+        const int clearId = focus == P::kLearnFootswitch ? 31 : 1001 + focus * 10;
+        menu.addItem (learnId, "MIDI Learn: " + title, true, lt == focus);
+        menu.addItem (clearId, "Clear MIDI: " + title, ccOf (focus) >= 0);
+        if (lt >= 0) menu.addItem (1200, "Cancel MIDI learn");
+        menu.addSeparator();
+    }
+    else
+        addHeader (menu, menuLnf.f, icoPedal, menuAccent, "Fantomine", "Theremin voice  v" + String (JucePlugin_VersionString));
+
+    PopupMenu sizes, defSizes;
+    {
+        const char* names[numSizes] = { "60 %", "75 %", "100 %" };
+        const int def = WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes);
+        for (int i = 0; i < numSizes; ++i)
+        {
+            sizes.addItem (1 + i, String (names[i]) + (i == def ? "  (default)" : ""), true, std::abs (getHeight() - sizeHeight (i)) <= 2);
+            defSizes.addItem (20 + i, names[i], true, i == def);
+        }
+        sizes.addSeparator();
+        sizes.addSubMenu ("Default size (new windows)", defSizes);
+    }
+    menu.addSubMenu ("Plugin size", sizes);
+    PopupMenu glowM;
+    {
+        const int now = roundToInt (glow * 100.0f);
+        for (int i = 0; i < NineHandsGlow::numSteps; ++i)
+        {
+            const int pc = NineHandsGlow::steps[i];
+            glowM.addItem (60 + i, "Glow " + String (pc) + " %" + (pc == 100 ? "  (default)" : ""), true, now == pc);
+        }
+    }
+    menu.addSubMenu ("Glow (halo of the lights)", glowM);
+    menu.addSeparator();
+
+    PopupMenu factory, load, save;
+    const auto& fp = P::getFactoryPresets();
+    for (int i = 0; i < (int) fp.size(); ++i)
+        factory.addItem (100 + i, String (i + 1) + ". " + fp[(size_t) i].name, true,
+                         proc.getCurrentProgram() == i && proc.getCurrentPresetName() == fp[(size_t) i].name);
+    for (int s = 1; s <= 9; ++s)
+    {
+        const bool used = proc.isUserSlotUsed (s);
+        load.addItem (200 + s, "User " + String (s) + (used ? "  " + proc.getUserSlotName (s) : String ("  (empty)")), used);
+        save.addItem (300 + s, "User " + String (s) + (used ? "  " + proc.getUserSlotName (s) + "  (overwrite)" : String()));
+    }
+    menu.addSubMenu ("Factory presets", factory);
+    menu.addSubMenu ("Load user preset", load);
+    menu.addSubMenu ("Save user preset", save);
+    menu.addSeparator();
+
+    // reglages de jeu
+    PopupMenu settings, mode, wrange;
+    const int pm = choice (proc, "pedalMode");
+    mode.addItem (21, "UP: heel = played note, toe = + Range", true, pm == 0);
+    mode.addItem (22, "DOWN: heel = played note, toe = - Range", true, pm == 1);
+    mode.addItem (23, "BIPOLAR: centre = played note", true, pm == 2);
+    settings.addSubMenu ("Pitch pedal direction", mode);
+    const int wr = choice (proc, "whammyRange");
+    wrange.addItem (41, "Heel -1 oct  >  centre 0  >  toe +1 oct", true, wr == 0);
+    wrange.addItem (42, "Heel 0  >  toe +1 oct", true, wr == 1);
+    wrange.addItem (43, "Heel 0  >  toe -1 oct", true, wr == 2);
+    settings.addSubMenu ("Octave whammy range", wrange);
+    menu.addSubMenu ("Settings", settings);
+
+    // MIDI : MIDI Learn de chaque commande (aucun CC par defaut), sens des pedales, footswitch
+    PopupMenu midi, foot;
+    midi.addSectionHeader ("MIDI Learn");
+    for (int t = 0; t < P::kNumTargets; ++t)
+    {
+        const String label = t == P::kPitch ? "PITCH (bend)" : t == P::kOctave ? "OCTAVE (whammy)" : String (P::getTargetName (t));
+        midi.addItem (1000 + t * 10, "Learn: " + label + "  (" + ccText (ccOf (t)) + ")", true, lt == t);
+    }
+    const int fcc = proc.footswitchCC.load();
+    foot.addItem (30, "MIDI Learn (press the footswitch)", true, lt == P::kLearnFootswitch);
+    foot.addItem (31, "Clear MIDI: footswitch", fcc >= 0);
+    foot.addItem (32, "CC 64", true, fcc == 64);
+    foot.addItem (33, "CC 80", true, fcc == 80);
+    midi.addSubMenu ("Footswitch  (" + ccText (fcc) + ")", foot, true, nullptr, lt == P::kLearnFootswitch);
+    midi.addSeparator();
+    if (lt >= 0) midi.addItem (1200, "Cancel MIDI learn");
+    midi.addItem (1201, "Clear all MIDI assignments");
+    midi.addSeparator();
+    midi.addItem (50, "MIDI pedals inverted (heel / toe)", true, flag (proc, "invert"));
+    menu.addSubMenu ("MIDI", midi);
+    menu.addSeparator();
+    menu.addItem (999, "Fantomine v" + String (JucePlugin_VersionString) + "  NINE HANDS | DSP", false);
+
+    menu.showMenuAsync (PopupMenu::Options().withMousePosition(),       // toujours la ou l'on clique
+        [safe = Component::SafePointer<FantomineAudioProcessorEditor> (this)] (int r)
+        {
+            if (safe == nullptr || r == 0) return;
+            auto& ed = *safe;
+            auto& pr = ed.proc;
+            if      (r >= 1 && r < 1 + numSizes) ed.setWindowHeight (sizeHeight (r - 1));
+            else if (r >= 20 && r < 20 + numSizes)
+            {
+                WigaWindowSize::setDefaultIndex (JucePlugin_Name, r - 20);
+                ed.setWindowHeight (sizeHeight (r - 20));
+            }
+            else if (r >= 60 && r < 60 + NineHandsGlow::numSteps)
+            {
+                ed.setGlowPercent (NineHandsGlow::steps[r - 60]);
+                ed.flash ("Glow  " + String (NineHandsGlow::steps[r - 60]) + " %");
+            }
+            else if (r >= 100 && r < 200)
+            {
+                pr.setCurrentProgram (r - 100);
+                pr.updateHostDisplay (AudioProcessor::ChangeDetails().withProgramChanged (true));
+            }
+            else if (r > 200 && r < 300) pr.loadUserPreset (r - 200);
+            else if (r > 300 && r < 400) { pr.saveUserPreset (r - 300); ed.flash ("Saved  User " + String (r - 300)); }
+            else if (r >= 21 && r <= 23) ed.setChoice ("pedalMode", r - 21);
+            else if (r >= 41 && r <= 43) ed.setChoice ("whammyRange", r - 41);
+            else if (r == 30) pr.learnTarget.store (pr.learnTarget.load() == P::kLearnFootswitch ? -1 : P::kLearnFootswitch);
+            else if (r == 31) { pr.footswitchCC.store (-1); ed.flash ("FOOTSWITCH  MIDI cleared"); }
+            else if (r == 32) pr.assignCC (P::kLearnFootswitch, 64);
+            else if (r == 33) pr.assignCC (P::kLearnFootswitch, 80);
+            else if (r == 50)
+            {
+                if (auto* prm = pr.apvts.getParameter ("invert"))
+                    prm->setValueNotifyingHost (prm->getValue() < 0.5f ? 1.0f : 0.0f);
+            }
+            else if (r == 1200) pr.learnTarget.store (-1);
+            else if (r == 1201)
+            {
+                pr.learnTarget.store (-1); pr.resetMidiMap();
+                if (auto* prm = pr.apvts.getParameter ("expression")) prm->setValueNotifyingHost (0.0f);
+                ed.flash ("All MIDI cleared");
+            }
+            else if (r >= 1000 && r < 1000 + P::kNumTargets * 10)
+            {
+                const int t = (r - 1000) / 10, kk = (r - 1000) % 10;
+                if (kk == 0) pr.learnTarget.store (pr.learnTarget.load() == t ? -1 : t);       // re-cliquer annule
+                else
+                {
+                    pr.targetCC[(size_t) t].store (-1);
+                    if (t == P::kPitch)
+                        if (auto* prm = pr.apvts.getParameter ("expression")) prm->setValueNotifyingHost (0.0f);
+                    ed.flash (String (P::getTargetName (t)) + "  MIDI cleared");
+                }
+            }
+        });
 }
