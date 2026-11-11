@@ -241,6 +241,17 @@ def make():
 
     # ------------------------------------------------------------------ repères
     sc = lambda r: [round(r[0], 2), round(r[1], 2)]
+    # barre presets / état (400 x 38, référence Strong Pickle) centrée verticalement entre le bas de la LED
+    # (joint compris) et le haut des lettres de « BYPASS · HOLD » (Poppins Medium 15, mesuré sur la police)
+    from PIL import ImageFont
+    by = fs_u[1] - flats / math.sqrt(3) - 15.0
+    f15 = ImageFont.truetype(os.path.join(ROOT, 'Poppins-Medium.ttf'), 1500)
+    bb = f15.getbbox('BYPASS · HOLD', anchor='mm')          # en 1/100 d'unité
+    label_top = by + bb[1] / 100.0
+    led_bottom = led_u[1] + led_r * 1.07
+    pill_cy = (led_bottom + label_top) / 2
+    pill_box = [round(UW / 2 - 200, 2), round(pill_cy - 19, 2), 400.0, 38.0]
+    print('LED bas', round(led_bottom, 2), '| haut des lettres', round(label_top, 2), '| centre barre', round(pill_cy, 2))
     s_box = lambda b: [round(U(b[0], b[1])[0], 2), round(U(b[0], b[1])[1], 2),
                        round((b[2] - b[0]) * SX, 2), round((b[3] - b[1]) * SY, 2)]
     lay = dict(
@@ -252,7 +263,7 @@ def make():
         screen=s_box(SCREEN_IN_D), led=sc(led_u), ledS=round(ledS, 2), ledR=led_r,
         foot=sc(fs_u), footR=round(fsBtn, 2), fsS=round(fsS, 2), flats=flats,
         title=sc(U(445, 207)), titleH=round(118 * SY, 2), subtitle=sc(U(445, 313)),
-        pill=[round(UW / 2 - 200, 2), round(U(0, 875)[1] - 19, 2), 400.0, 38.0],
+        pill=pill_box,
         octave=dict(label=sc(U(335, 1008)), m1=sc(U(158, 1076)), p1=sc(U(512, 1076)), zero=sc(U(334, 1133)),
                     handle=sc(U((OCT_HANDLE_D[0] + OCT_HANDLE_D[2]) / 2, (OCT_HANDLE_D[1] + OCT_HANDLE_D[3]) / 2)),
                     handleBox=[round(v, 3) for v in handle_box_u],
