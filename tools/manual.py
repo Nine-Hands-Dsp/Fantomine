@@ -45,7 +45,7 @@ if SHOTS:
              (5, kn[2][0] + 66, kn[2][1] - 72), (6, kn[3][0] + 66, kn[3][1] - 72), (7, kn[4][0] + 66, kn[4][1] - 72),
              (8, kn[5][0] + 66, kn[5][1] - 72), (9, o["slot"][0] + o["slot"][2] + 50, o["slot"][1] - 6), (10, lx + 34, ly - 14),
              (11, px + pw + 24, py + ph / 2), (12, fx + 84, fy - 40), (13, box[0] + box[2] - 50, j["inY"] - 40),
-             (14, box[0] + box[2] - 50, j["expY"] + 42), (15, box[0] + 46, j["outY"] - 40)]
+             (14, box[0] + box[2] - 50, j["expY"] + 74), (15, box[0] + 46, j["outY"] - 40)]
     ann = src.copy(); dr = ImageDraw.Draw(ann)
     fnt = ImageFont.truetype(os.path.join(FONTS, "Poppins-Bold.ttf"), 30)
     for n, x, y in marks:
@@ -119,9 +119,18 @@ if SHOTS:
     for n in NAMES: shutil.copy(os.path.join(TMP, n), os.path.join(ASSETS, n))
 annotated, onoff, oct_img, bar_img, glow_img, menus_img, screen_img, cover = [os.path.join(ASSETS, n) for n in NAMES]
 
+JPG_DIR = os.path.join(TMP, "_jpg"); os.makedirs(JPG_DIR, exist_ok=True)
+def jpg(path, width_pt):
+    """copie JPEG (qualite 88) a ~220 ppp de la taille affichee : notice legere, images toujours nettes a l'ecran et a l'impression"""
+    im = Image.open(path).convert("RGB")
+    px = int(round(width_pt / 72.0 * 220))
+    if im.width > px: im = im.resize((px, int(round(im.height * px / im.width))), Image.LANCZOS)
+    out = os.path.join(JPG_DIR, os.path.splitext(os.path.basename(path))[0] + ".jpg")
+    im.save(out, "JPEG", quality=88, optimize=True, progressive=True, subsampling=0)
+    return out
 def img(path, width):
     im = Image.open(path); h = width * im.height / im.width
-    return RLImage(path, width=width, height=h)
+    return RLImage(jpg(path, width), width=width, height=h)
 
 # ---------- styles ----------
 st = {
@@ -402,7 +411,7 @@ def cover_bg(c, doc):
     k = min(PEDAL_H / ch, PEDAL_MAXW / cw)
     dw, dh = iw * k, ih * k
     y0 = A4[1] - (PEDAL_TOP + (PEDAL_H - ch * k) / 2) + pad * k
-    c.drawImage(cover, (A4[0] - dw) / 2, y0 - dh, dw, dh)
+    c.drawImage(jpg(cover, dw), (A4[0] - dw) / 2, y0 - dh, dw, dh)
     line(COVER_NAME, NAME_TOP - NAME_PT * 0.02, "Title", NAME_PT, NAME_PT * 0.5, colors.white)
     line(COVER_SUB, SUB_TOP, "Pop", SUB_PT, 1.5, colors.HexColor("#BDC4B8"))
     lw, lh = Image.open(LOGO_PNG).size
@@ -411,4 +420,5 @@ def cover_bg(c, doc):
 doc.addPageTemplates([PageTemplate(id="cover", frames=[Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="fc")], onPage=cover_bg),
                       PageTemplate(id="p", frames=[Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="f")], onPage=deco)])
 doc.build(f)
+shutil.rmtree(JPG_DIR, ignore_errors=True)
 print(OUT)
