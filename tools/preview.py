@@ -43,6 +43,28 @@ def text_c(d, xy_u, txt, f, fill, spacing_u=0.0, anchor='mm'):
     for ch, w in zip(txt, ws):
         d.text((cx, y), ch, font=f, fill=fill, anchor='lm'); cx += w + P(spacing_u)
 
+_MASKS = {}
+def svg_mask(name, W, H):
+    """masque alpha du SVG posé dans la boîte LAY['brand'] (x, y, largeur, hauteur en unités = viewBox 3000 x 1000)"""
+    if name in _MASKS: return _MASKS[name]
+    from playwright.sync_api import sync_playwright
+    bx, by, bw, bh = LAY['brand']
+    svg = open(os.path.join(ROOT, name + '.svg')).read()
+    wpx, hpx = int(round(P(bw))), int(round(P(bh)))
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(); pg = b.new_page(viewport={'width': wpx, 'height': hpx})
+        pg.set_content('<html><body style="margin:0;background:transparent">' + svg.replace('<svg ', f'<svg width="{wpx}" height="{hpx}" ', 1) + '</body></html>')
+        png = pg.locator('svg').screenshot(omit_background=True); b.close()
+    import io
+    a = np.asarray(Image.open(io.BytesIO(png)).convert('RGBA'))[..., 3].astype(np.float32) / 255
+    m = np.zeros((H, W), np.float32); x0, y0 = int(round(P(bx))), int(round(P(by)))
+    sx0, sy0 = max(0, -x0), max(0, -y0)                     # la boîte du viewBox peut dépasser (marges vides du SVG)
+    dx0, dy0 = max(0, x0), max(0, y0)
+    hh = min(a.shape[0] - sy0, H - dy0); ww = min(a.shape[1] - sx0, W - dx0)
+    m[dy0:dy0 + hh, dx0:dx0 + ww] = a[sy0:sy0 + hh, sx0:sx0 + ww]
+    _MASKS[name] = m
+    return m
+
 def compose(on=True, glow=1.0, note='A3', cents='+0 ¢', status=None):
     bg = Image.open(os.path.join(ROOT, 'background.png')).convert('RGBA')
     W, H = bg.size
@@ -50,10 +72,9 @@ def compose(on=True, glow=1.0, note='A3', cents='+0 ¢', status=None):
     d = ImageDraw.Draw(img)
     lightL = 1.0 if on else 0.0
 
-    # ---------------- titre néon (vectoriel, police du design : Lora)
-    tf = font(LORA, 100, 640)
-    tl = Image.new('L', (W, H), 0); ImageDraw.Draw(tl).text((P(LAY['title'][0]), P(LAY['title'][1])), 'Fantomine', font=tf, anchor='mm', fill=255)
-    tA = np.asarray(tl).astype(np.float32) / 255
+    # ---------------- logo Fantomine (SVG fourni : FantomineTitle.svg = néon, FantomineSubtitle.svg = sérigraphie)
+    tA = svg_mask('FantomineTitle', W, H)
+    subA = svg_mask('FantomineSubtitle', W, H)
     # tube de verre éteint : lavande grise, relief (biseau éclairé en haut à gauche)
     edge = cv2.GaussianBlur(tA, (0, 0), 2.2)
     bevel = np.clip((np.roll(np.roll(edge, 3, 0), 3, 1) - np.roll(np.roll(edge, -3, 0), -3, 1)) * 1.6, -1, 1)
@@ -72,7 +93,8 @@ def compose(on=True, glow=1.0, note='A3', cents='+0 ¢', status=None):
         col = glass
     base[..., :3] = base[..., :3] * (1 - tA[..., None]) + col * tA[..., None]
     img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8), 'RGBA'); d = ImageDraw.Draw(img)
-    text_c(d, LAY['subtitle'], 'THEREMIN VOICE', font(POP_M, 17.5), SILK2, 6.2)
+    sub = Image.new('RGBA', (W, H), SILK2 + (0,)); sub.putalpha(Image.fromarray((subA * 255).astype(np.uint8)))
+    img.alpha_composite(sub); d = ImageDraw.Draw(img)
 
     # ---------------- graduations, noms, min / max
     lf = font(POP_M, 21); sf = font(POP_R, 13.5)

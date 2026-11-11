@@ -262,7 +262,9 @@ def make():
         separator=[round(U(838, 0)[0], 2), round(U(0, 480)[1], 2), round(U(0, 690)[1], 2)],
         screen=s_box(SCREEN_IN_D), led=sc(led_u), ledS=round(ledS, 2), ledR=led_r,
         foot=sc(fs_u), footR=round(fsBtn, 2), fsS=round(fsS, 2), flats=flats,
-        title=sc(U(445, 207)), titleH=round(118 * SY, 2), subtitle=sc(U(445, 313)),
+        # logo Fantomine (SVG fourni, viewBox 3000 x 1000, dessin de x 249 à 2748 et de y 129 à 870) :
+        # 520 unités de large, centré sur (310, 158), aligné sur le haut et le bas de l'écran
+        brand=[round(310 - 1500 * (520 / 2499), 3), round(158 - (129 + 870) / 2 * (520 / 2499), 3), round(3000 * 520 / 2499, 3), round(1000 * 520 / 2499, 3)],
         pill=pill_box,
         octave=dict(label=sc(U(335, 1008)), m1=sc(U(158, 1076)), p1=sc(U(512, 1076)), zero=sc(U(334, 1133)),
                     handle=sc(U((OCT_HANDLE_D[0] + OCT_HANDLE_D[2]) / 2, (OCT_HANDLE_D[1] + OCT_HANDLE_D[3]) / 2)),

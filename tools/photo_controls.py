@@ -90,12 +90,51 @@ def knob_sprite(R_units, AS, pad=1.45):
     return _with_shadow(rgb, a, 2 * R_units * AS, 0.66), S_
 
 
+def _footswitch_regular():
+    """La photo du footswitch n'est pas un hexagone régulier : les deux pans du haut sont ~6 px en retrait, ce qui crée
+    une marche au sommet haut-droit (et haut-gauche). On redresse l'écrou par une déformation radiale de sa couronne
+    extérieure (r > 300 px), sans rien couper ni retourner : le biseau éclairé du bord est conservé."""
+    im = _load('footswitch_photo.png')
+    h, w = im.shape[:2]
+    cx, cy = FS_C
+    a = im[..., 3] / 255.0
+    NTH = 3600
+    th = np.linspace(-np.pi, np.pi, NTH, endpoint=False)
+    rr = np.arange(280.0, 470.0, 0.25)
+    T_, R_ = np.meshgrid(th, rr)
+    av = cv2.remap(a.astype(np.float32), (cx + R_ * np.cos(T_)).astype(np.float32), (cy + R_ * np.sin(T_)).astype(np.float32), cv2.INTER_LINEAR)
+    inside = av > 0.5
+    idx = np.where(inside.any(0), inside.shape[0] - 1 - np.argmax(inside[::-1], 0), 0)
+    R_act = rr[idx]
+    R_act = np.convolve(np.r_[R_act[-15:], R_act, R_act[:15]], np.ones(31) / 31, 'same')[15:-15]
+    # cible : hexagone régulier à plats en haut / bas (sommets à 0, 60, ... degrés), plats à la moyenne mesurée,
+    # sommets abattus au même rayon que la photo
+    flat_d = 356.0
+    rel = (np.degrees(th) % 60.0) - 30.0                          # 0 au milieu d'un plat
+    T_hex = np.minimum(flat_d / np.cos(np.radians(rel)), 406.5)
+    r0 = 300.0
+    k = (R_act - r0) / np.maximum(T_hex - r0, 1.0)                # facteur de lecture radial par angle
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    dx, dy = xx - cx, yy - cy
+    r = np.hypot(dx, dy); t = np.arctan2(dy, dx)
+    ti = ((t + np.pi) / (2 * np.pi) * NTH).astype(int) % NTH
+    kk = k[ti]
+    rs = np.where(r > r0, r0 + (r - r0) * kk, r)
+    sx = (cx + rs * np.cos(t)).astype(np.float32); sy = (cy + rs * np.sin(t)).astype(np.float32)
+    pm = im.copy(); pm[..., :3] *= pm[..., 3:4] / 255.0
+    out = np.dstack([cv2.remap(pm[..., c], sx, sy, cv2.INTER_CUBIC, borderValue=0) for c in range(4)])
+    aa = np.clip(out[..., 3:4] / 255.0, 0, 1)
+    out[..., :3] = np.where(aa > 1e-4, out[..., :3] / np.maximum(aa, 1e-4), 0)
+    out[..., 3] = np.clip(out[..., 3], 0, 255)
+    return out
+
+
 def footswitch_sprite(flats_units, AS, pad=1.9, refl_colour=(60.0, 140.0, 255.0)):
     """sprite carre (cote = flats * pad unites) ; renvoie (rgba, reflet bleu rgba, cote en unites, rayon du bouton en unites)"""
     S_ = flats_units * pad
     n = int(round(S_ * AS))
     k = flats_units * AS / FS_FLATS_PX
-    rgb, a = _place(_load('footswitch_photo.png'), FS_C, k, n)
+    rgb, a = _place(_footswitch_regular(), FS_C, k, n)
     spr = _with_shadow(rgb, a, flats_units * AS, 0.62)
     # reflet bleu de la LED voisine (au-dessus) sur le flanc haut de l'ecrou : calque separe, en fondu avec la LED
     yy, xx = np.mgrid[0:n, 0:n].astype(np.float32)
