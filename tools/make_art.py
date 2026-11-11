@@ -179,11 +179,21 @@ def make():
     jack_len = JACK_LEN
     jl, jw, jh = pc.jack_sprite(jack_len, AS, -1)
     jr, _, _ = pc.jack_sprite(jack_len, AS, +1)
+    # hauteur des embases réduite de 10 % (demande de l'utilisateur) ; la saillie reste la même (jacks aux bords de l'image)
+    JACK_HK = 0.90
+    def squash(spr):
+        pm = spr.copy(); pm[..., :3] *= pm[..., 3:4] / 255.0
+        n_h = int(round(spr.shape[0] * JACK_HK))
+        sm = cv2.resize(pm, (spr.shape[1], n_h), interpolation=cv2.INTER_AREA)
+        a_ = sm[..., 3:4] / 255.0
+        sm[..., :3] = np.where(a_ > 1e-4, sm[..., :3] / np.maximum(a_, 1e-4), 0)
+        return sm
+    jl, jr = squash(jl), squash(jr); jh *= JACK_HK
     jack_out_y = U(0, 452)[1]; jack_in_y = U(0, 452)[1]; jack_exp_y = U(0, 640)[1]
     over(jr, BOX_X0 + BOX_W + jw / 2 - 0.6, jack_in_y)
     over(jr, BOX_X0 + BOX_W + jw / 2 - 0.6, jack_exp_y)
     over(jl, BOX_X0 - jw / 2 + 0.6, jack_out_y)
-    L['jacks'] = dict(len=jack_len, w=jw, outY=jack_out_y, inY=jack_in_y, expY=jack_exp_y)
+    L['jacks'] = dict(len=jack_len * JACK_HK, w=jw, outY=jack_out_y, inY=jack_in_y, expY=jack_exp_y)
 
     # --- occlusions douces : potards, LED, footswitch
     knobs_u = [U(x, y) for x, y in KNOBS_D]
@@ -192,7 +202,7 @@ def make():
     led_u = U(*LED_D); fs_u = U(*FS_D)
 
     # --- footswitch d'Echoflex (kit photo) : ce n'est pas un calque mobile, il fait partie du fond
-    flats = 140.0
+    flats = 112.0                                  # 140 x 0,8 : footswitch réduit de 20 % (demande de l'utilisateur)
     fs, fs_refl, fsS, fsBtn = pc.footswitch_sprite(flats, AS, refl_colour=(126.0, 240.0, 214.0))
     occlusion(fs_u[0], fs_u[1], flats * 0.55, 0.30, 0.28)
     over(fs, *fs_u)
@@ -247,7 +257,8 @@ def make():
                     handle=sc(U((OCT_HANDLE_D[0] + OCT_HANDLE_D[2]) / 2, (OCT_HANDLE_D[1] + OCT_HANDLE_D[3]) / 2)),
                     handleBox=[round(v, 3) for v in handle_box_u],
                     travel=round(90 * SX, 2), slot=s_box(OCT_SLOT_D)),
-        bypassLabel=sc(U(838, 960)), logo=sc(U(1342, 1090)), logoW=round(232 * SX, 2),
+        bypassLabel=[round(fs_u[0], 2), round(fs_u[1] - flats / math.sqrt(3) - 15.0, 2)],   # 15 unités au-dessus de l'écrou
+        logo=sc(U(1342, 1090)), logoW=round(232 * SX, 2),
         jacks=L['jacks'], scale=dict(sx=SX, sy=SY),
     )
     with open(os.path.join(HERE, 'layout.json'), 'w') as f: json.dump(lay, f, indent=1)
