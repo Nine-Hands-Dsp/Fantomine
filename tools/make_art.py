@@ -72,13 +72,35 @@ def build_clean():
     A = SRC.copy()
     h, w = A.shape[:2]
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+
+    # ombre portée du footswitch d'origine (plus grand, ombre jusqu'à ~210 px vers le bas à droite) : on la retire
+    # par division (gain d'éclairage), ce qui garde les gravures et le grain de la façade intacts
+    rf = np.hypot(xx - FS_D[0], yy - FS_D[1])
+    rz = np.hypot(xx - FS_D[0] - 40, yy - FS_D[1] - 50)
+    inside_box = (xx > BODY[0] + 8) & (xx < BODY[2] - 8) & (yy > BODY[1] + 8) & (yy < BODY[3] - 8)
+    Lsrc = lum(A)
+    def ncv(img, msk, sig):
+        return cv2.GaussianBlur(img * msk, (0, 0), sig) / np.maximum(cv2.GaussianBlur(msk, (0, 0), sig), 1e-5)
+    m_obs = ((rf > 123) & inside_box).astype(np.float32)
+    m_ref = ((rz > 250) & inside_box).astype(np.float32)
+    # gravures exclues de l'estimation (traits clairs fins)
+    fine = (Lsrc - cv2.GaussianBlur(Lsrc, (0, 0), 3)) > 6
+    m_obs *= ~fine; m_ref *= ~fine
+    observed = ncv(Lsrc, m_obs, 4)
+    expected = ncv(Lsrc, m_ref, 70)
+    gain = np.clip(observed / np.maximum(expected, 1), 0.06, 1.0)
+    zone = np.clip((300 - rz) / 60.0, 0, 1) * inside_box
+    gain = 1 - (1 - gain) * zone
+    # seule la composante lisse est corrigée : le grain et les gravures gardent leur amplitude (aucun bruit amplifié)
+    A_low = cv2.GaussianBlur(A, (0, 0), 2.2)
+    A = A_low / gain[..., None] + (A - A_low) * np.clip(1.0 / gain, 1.0, 1.6)[..., None]
     m = np.zeros((h, w), bool)
     for cx, cy in KNOBS_D: m |= np.hypot(xx - cx - 2, yy - cy - 3) < 124
     for (x0, y0, x1, y1) in TEXT_BOXES_D + [TITLE_D, STATUS_D, LOGO_D, OCT_HANDLE_D, OCT_SHADOW_D]:
         m[y0:y1, x0:x1] = True
     for sx, sy in SCREWS_D: m |= np.hypot(xx - sx - 1, yy - sy - 1) < 34
     m |= np.hypot(xx - LED_D[0], yy - LED_D[1]) < 64
-    m |= np.hypot(xx - FS_D[0], yy - FS_D[1]) < 122
+    m |= np.hypot(xx - FS_D[0], yy - FS_D[1]) < 128
     # la fente du levier reste : on ne remplit que le levier (fait à part)
     keep_slot = np.zeros_like(m); x0, y0, x1, y1 = OCT_SLOT_D; keep_slot[y0:y1, x0:x1] = True
     m_plate = m & ~keep_slot
@@ -99,12 +121,12 @@ def build_clean():
     # grain de la façade : bruit fin synthétique (aucune mosaïque, donc aucun motif répété),
     # amplitude mesurée sur une zone de façade saine
     rng = np.random.default_rng(4)
-    hp = A - cv2.GaussianBlur(A, (0, 0), 2.2)
-    ref = hp[1150:1235, 600:760]
+    hp = SRC - cv2.GaussianBlur(SRC, (0, 0), 2.2)
+    ref = hp[30:90, 330:640]                       # façade saine (haut gauche, sans gravure ni ombre)
     sd = float(np.std(ref.mean(2)))
     nz = cv2.GaussianBlur(rng.normal(0, 1, (h, w)).astype(np.float32), (0, 0), 0.75)
     nz *= sd / max(1e-6, float(np.std(nz)))
-    grain = np.dstack([nz, nz * 0.97, nz * 1.04])
+    grain = np.dstack([nz, nz * 0.97, nz * 1.04]) * 0.7
     fill = low + grain
     soft = cv2.GaussianBlur(m_plate.astype(np.float32), (0, 0), 3.0)[..., None]
     soft = np.clip(soft * 1.6, 0, 1)
@@ -137,6 +159,8 @@ def body_alpha(wpx, hpx, rpx):
         cv2.circle(big, (int(cx * ss), int(cy * ss)), int(rpx * ss), 255, -1)
     return cv2.resize(big, (wpx, hpx), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
 
+
+BRAND_K = 416.0 / 2499.0                           # unités par unité du viewBox du logo Fantomine
 
 def make():
     clean = build_clean()
@@ -263,8 +287,8 @@ def make():
         screen=s_box(SCREEN_IN_D), led=sc(led_u), ledS=round(ledS, 2), ledR=led_r,
         foot=sc(fs_u), footR=round(fsBtn, 2), fsS=round(fsS, 2), flats=flats,
         # logo Fantomine (SVG fourni, viewBox 3000 x 1000, dessin de x 249 à 2748 et de y 129 à 870) :
-        # 520 unités de large, centré sur (310, 158), aligné sur le haut et le bas de l'écran
-        brand=[round(310 - 1500 * (520 / 2499), 3), round(158 - (129 + 870) / 2 * (520 / 2499), 3), round(3000 * 520 / 2499, 3), round(1000 * 520 / 2499, 3)],
+        # 416 unités de large (520 réduit de 20 %, demande de l'utilisateur), centré sur (310, 158)
+        brand=[round(310 - 1500 * BRAND_K, 3), round(158 - (129 + 870) / 2 * BRAND_K, 3), round(3000 * BRAND_K, 3), round(1000 * BRAND_K, 3)],
         pill=pill_box,
         octave=dict(label=sc(U(335, 1008)), m1=sc(U(158, 1076)), p1=sc(U(512, 1076)), zero=sc(U(334, 1133)),
                     handle=sc(U((OCT_HANDLE_D[0] + OCT_HANDLE_D[2]) / 2, (OCT_HANDLE_D[1] + OCT_HANDLE_D[3]) / 2)),
