@@ -1,179 +1,121 @@
 #pragma once
-
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
-
-// Tout est exprimé en pixels du visuel background.png (1240 x 928, même format que Ring Think).
-namespace ui
-{
-    constexpr int   kW = 1240, kH = 928;
-    constexpr int   kRefW = 993;                              // tailles 67 / 75 / 100 % exprimées sur cette largeur (comme Ring Think)
-    constexpr float kDefaultScale = 661.0f / 993.0f;          // fenêtre par défaut = 661 x 495 px, et taille minimale
-    constexpr int   kMaxW = 1500;
-}
+#include "Layout.h"
+#include "NineHandsMenu.h"
+#include "NHKnob.h"
 
 //==============================================================================
-// État lumineux partagé : 1 = pédale active, 0 = bypass (toutes les lumières éteintes)
-struct Lights
-{
-    float power = 1.0f;       // fondu global
-    float title = 1.0f;       // néon du titre (petit scintillement à l'allumage)
-    float led   = 0.0f;       // LED au-dessus du footswitch
-};
-
+// FANTOMINE v2 (NINE HANDS | DSP) : pedale double, fond 2350 x 1800 px plein cadre (repere 1175 x 900, Layout.h).
+// Le fond contient le boitier, la vitre de l'ecran, la fente du levier, la LED eteinte, le footswitch et les jacks
+// (pieces du kit photo). L'editeur dessine par-dessus : potards nh::Knob (composants enfants), neon du titre,
+// halos (doses par le reglage Glow du clic droit), LED, levier d'octave, serigraphie vectorielle (Poppins),
+// logo NINE HANDS | DSP (SVG officiel), ecran (voix fantome, note, pedale) et pastille presets / ligne d'etat.
 //==============================================================================
-// Potard : le corps est dans le visuel, seul le trait lumineux (et le repère) tourne.
-class PedalKnob : public juce::Slider
-{
-public:
-    PedalKnob (juce::String labelText, const Lights& l);
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    bool hitTest (int x, int y) override;
-    juce::String label;
-private:
-    const Lights& lights;
-};
-
-//==============================================================================
-class OctaveSwitch : public juce::Component
-{
-public:
-    OctaveSwitch (FantomineAudioProcessor& pr, juce::RangedAudioParameter& p, const juce::Image& handle);
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseDrag (const juce::MouseEvent&) override;
-    std::function<void()> onChange;
-    int position = 1;
-    float anim = 1.0f;
-private:
-    void setFromX (float x);
-    FantomineAudioProcessor& proc;
-    juce::ParameterAttachment attachment;
-    juce::Image handle;
-};
-
-//==============================================================================
-class Footswitch : public juce::Component
-{
-public:
-    explicit Footswitch (FantomineAudioProcessor& p) : proc (p) {}
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseUp (const juce::MouseEvent&) override;
-    bool hitTest (int x, int y) override;
-    float pressAnim = 0.0f;
-private:
-    FantomineAudioProcessor& proc;
-};
-
-//==============================================================================
-// Écran : nom du preset, sens de la pédale, voix fantôme animée, note jouée, barre EXP.
-class GhostDisplay : public juce::Component
-{
-public:
-    GhostDisplay (FantomineAudioProcessor& p, const Lights& l) : proc (p), lights (l) {}
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseDrag (const juce::MouseEvent&) override;
-    void mouseUp (const juce::MouseEvent&) override;
-    void tick (float dt);
-    std::function<void (const juce::String&)> showStatus;
-    bool isOverModeArea (juce::Point<float> p) const { return modeArea().expanded (4.0f).contains (p); }   // clic droit : MIDI Learn PEDAL MODE
-
-private:
-    void showPresetMenu();
-    void stepPreset (int delta);
-    void setExpressionFromY (float y);
-    juce::Rectangle<float> presetArea() const, prevArea() const, nextArea() const,
-                           modeArea() const, expArea() const;
-
-    FantomineAudioProcessor& proc;
-    const Lights& lights;
-    float phase = 0.0f, ampSm = 0.0f, midiSm = 57.0f, expSm = 0.0f, midiBlink = 0.0f;
-    float drawnPower = -1.0f;        // dernière luminosité vue par tick() : écran éteint = rien à redessiner
-    bool draggingExp = false;
-};
-
-//==============================================================================
-class PedalView : public juce::Component, private juce::Slider::Listener
-{
-public:
-    explicit PedalView (FantomineAudioProcessor&);
-    ~PedalView() override;
-    void paint (juce::Graphics&) override;
-    void paintOverChildren (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void tick (float dt);
-    std::function<void (int)> onSizeRequest;     // 0 = 60 %, 1 = 75 %, 2 = 100 %, -1 = taille par défaut des nouvelles fenêtres
-    std::function<int()> getSizeIndex;
-
-    // anti-gel v2 : fond à la taille réelle en pixels (refait par le timer de l'éditeur seulement)
-    // et suivi des redessins demandés pour le chien de garde
-    void rebuildCache (float pixelsPerArtPixel);
-    void askRepaint (juce::Rectangle<int> r);
-    double lastPaintMs = 0.0, repaintAskedMs = 0.0;
-
-private:
-    void sliderValueChanged (juce::Slider*) override;
-    void sliderDragStarted (juce::Slider*) override;
-    void showContextMenu (int focusTarget = -1);   // focusTarget : cible MIDI (0..8) ou kLearnFootswitch, -1 = hors commande
-    void setStatus (const juce::String& s, double seconds = 2.5);
-    juce::String currentStatusText() const;
-
-    FantomineAudioProcessor& proc;
-    Lights lights;
-    juce::Image background, titleOn, ledOn, octHandle;
-    juce::Image bgCache;
-
-    PedalKnob glide { "GLIDE", lights }, range { "RANGE", lights }, tone { "TONE", lights },
-              vibrato { "VIBRATO", lights }, speed { "SPEED", lights }, blend { "BLEND", lights };
-    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> attachments;
-    std::unique_ptr<OctaveSwitch> octave;
-    Footswitch footswitch;
-    GhostDisplay display;
-
-    juce::String statusText;
-    double statusUntil = 0.0;
-    float ledPulse = 0.0f, flickerT = 1.0f, lastPower = -1.0f, lastOct = 0.0f;
-    bool wasOn = true;
-
-    // dernier état réellement dessiné : on ne redessine une zone que si elle a changé
-    float drawnTitle = -1.0f, drawnLed = -1.0f;
-    juce::String drawnStatus;
-    bool drawnStatusBypass = false, statusDrawnOnce = false;
-};
-
-//==============================================================================
-class FantomineAudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer
+class FantomineAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                      private juce::Timer
 {
 public:
     explicit FantomineAudioProcessorEditor (FantomineAudioProcessor&);
     ~FantomineAudioProcessorEditor() override;
-    void paint (juce::Graphics& g) override { g.fillAll (juce::Colours::black); }
+
+    void paint (juce::Graphics&) override;
     void resized() override;
     void parentHierarchyChanged() override;
 
-    int  getScaleIndex() const;
-    void setScaleIndex (int idx);
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+
+    static constexpr float baseW = layout::frameW, baseH = layout::frameH;
+    static constexpr int numSizes = 3;                   // 60 % (defaut) / 75 % / 100 %
+    static constexpr int heightDefault = 495, height75 = 557, height100 = 743, heightMax = 1114;
+    static int sizeHeight (int idx);
+    void setWindowHeight (int h);
+
+    // outil de rendu (captures) : echelle forcee, etat lumineux immediat
+    void forceRenderScale (float sc);
+    void settleForCapture();
+    void setGlowPercent (int pc);
+    void flash (const juce::String& text, double seconds = 2.5);
 
 private:
     void timerCallback() override;
     void visibilityChanged() override;
     void useSoftwareRenderer();
-    void rebuildCaches (float scale = 0.0f);
     float physicalScale() const;
+    void askRepaint (juce::Rectangle<float> unitsRect);
+    void rebuildCaches (float sc = 0.0f);
+    float k() const { return (float) getHeight() / baseH; }
+    juce::Point<float> toUnits (juce::Point<float> p) const { return p / k(); }
+
+    enum class Hit { none, octave, foot, mode, exp, screen, presetPrev, presetName, presetNext };
+    Hit hitAt (juce::Point<float> u) const;
+
+    // zones de l'ecran (unites)
+    juce::Rectangle<float> modeArea() const;
+    juce::Rectangle<float> expArea() const;
+
+    void setChoice (const char* id, int v);
+    void setOctaveFromX (float ux);
+    void setExpressionFromY (float uy);
+    void stepPreset (int delta);
+    juce::String presetLine() const;
+    void showPresetMenu();
+    void showContextMenu (int focus);
+    void buildPrint();
+
+    void drawTitle (juce::Graphics&);
+    void drawPrint (juce::Graphics&);
+    void drawLights (juce::Graphics&);
+    void drawOctave (juce::Graphics&);
+    void drawScreen (juce::Graphics&);
+    void drawBar (juce::Graphics&);
 
     FantomineAudioProcessor& proc;
-    PedalView pedal;
-    double lastTick = 0.0;
+    NineHandsMenu::MenuLnf menuLnf;
+    juce::Typeface::Ptr mediumFace, boldFace, regularFace;
+    std::unique_ptr<juce::Drawable> logo, subtitle;
+    juce::Path namePath, printPath;          // noms des potards (clair) ; graduations, min/max, octave, jacks, BYPASS (gris)
 
-    // anti-gel v2 : suivi de la fenêtre hôte, de l'échelle et du cache du fond
+    std::array<std::unique_ptr<nh::Knob>, 6> knobs;
+    static constexpr int knobTarget[6] = { FantomineAudioProcessor::kGlide, FantomineAudioProcessor::kRange, FantomineAudioProcessor::kTone,
+                                           FantomineAudioProcessor::kVibrato, FantomineAudioProcessor::kSpeed, FantomineAudioProcessor::kBlend };
+
+    juce::Image background, bgScaled, glowTitle, titleOn, titleOff, glowLed, ledOn, fsRefl, octHandle;
+    int cacheW = 0, cacheH = 0, resizeSettle = 0, openHeight = 0;
+    float cacheScale = 0.0f, forcedScale = 0.0f;
     void* lastPeer = nullptr;
-    int cacheW = 0;
-    float cacheScale = 0.0f;
-    int resizeSettle = 0;
-    double lastScaleCheckMs = 0.0, lastRendererCheckMs = 0.0;
+    double lastPaintMs = 0.0, repaintAskedMs = 0.0, lastScaleCheckMs = 0.0, lastRendererCheckMs = 0.0, lastGlowReadMs = 0.0, lastTickMs = 0.0;
+
+    // etat affiche
+    float glow = 1.0f;                       // reglage Glow (1 = 100 %)
+    float power = 1.0f, titleLevel = 1.0f, ledLevel = 1.0f, flickerT = 1.0f, ledPulse = 0.0f;
+    float octAnim = 1.0f, footAnim = 0.0f;
+    float ampSm = 0.0f, midiSm = 57.0f, expSm = 0.0f, phase = 0.0f, midiBlink = 0.0f;
+    bool wasOn = true;
+    Hit dragging = Hit::none, hover = Hit::none;
+    bool footHeld = false;
+
+    // pastille unique : barre de presets au repos, ligne d'etat pendant les reglages (fondu croise)
+    juce::String statusText, presetText;
+    double statusUntil = 0.0;
+    float statusAlpha = 0.0f;
+    std::array<float, 6> lastKnob {};
+    int lastOctave = -1, lastMode = -1, lastWRange = -1;
+    bool lastBypass = false, lastHold = false, lastInvert = true;
+    float lastExp = -1.0f, lastOct = 0.0f;
+    juce::String lastPresetName;
+
+    // dernier etat dessine
+    float dPower = -1.0f, dTitle = -1.0f, dLed = -1.0f, dOct = -1.0f, dFoot = -1.0f, dStatus = -1.0f, dGlow = -1.0f;
+    bool dHold = false, dLearn = false;
+    Hit dHover = Hit::none;
+    juce::String dStatusText, dPresetText;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FantomineAudioProcessorEditor)
 };

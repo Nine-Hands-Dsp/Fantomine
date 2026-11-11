@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Fantomine VERSION 1.4.2 LANGUAGES C CXX)
+project(Fantomine VERSION 2.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,10 +41,24 @@ juce_add_plugin(Fantomine
 juce_add_binary_data(FantomineAssets SOURCES
     background.png
     title_on.png
+    title_off.png
+    glow_title.png
+    glow_led.png
     led_on.png
+    fs_refl.png
     oct_handle.png
-    Inter-SemiBold.otf
-    Inter-Regular.otf)
+    knob_shadow.png
+    knob_crown.png
+    knob_cap.png
+    knob_highlight.png
+    knob_marker_off.png
+    knob_marker_on.png
+    knob_marker_glow.png
+    FantomineSubtitle.svg
+    NineHandsLogoWhite.svg
+    Poppins-Regular.ttf
+    Poppins-Medium.ttf
+    Poppins-Bold.ttf)
 
 target_sources(Fantomine PRIVATE
     PluginProcessor.cpp

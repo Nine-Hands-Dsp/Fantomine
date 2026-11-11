@@ -90,6 +90,8 @@ public:
     // taille de fenêtre mémorisée avec le projet (comme Ring Think) : 0 = 60 %, 1 = 75 %, 2 = 100 %,
     // -1 = pas de taille choisie pour cette instance (taille par défaut des nouvelles fenêtres)
     std::atomic<int> uiScaleIdx { -1 };
+    // v2 : hauteur de fenetre de cette instance (-1 = taille par defaut des nouvelles fenetres)
+    std::atomic<int> uiHeight { -1 };
 
     static constexpr int kStateVersion = 1;
 
