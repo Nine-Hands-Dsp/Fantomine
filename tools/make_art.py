@@ -269,7 +269,8 @@ def make():
                     handleBox=[round(v, 3) for v in handle_box_u],
                     travel=round(90 * SX, 2), slot=s_box(OCT_SLOT_D)),
         bypassLabel=[round(fs_u[0], 2), round(fs_u[1] - flats / math.sqrt(3) - 15.0, 2)],   # 15 unités au-dessus de l'écrou
-        logo=sc(U(1342, 1090)), logoW=round(232 * SX, 2),
+        # logo NINE HANDS | DSP centré sous le footswitch, à mi-chemin entre le bas de l'écrou et le bas du boîtier
+        logo=[round(fs_u[0], 2), round((fs_u[1] + flats / 2 + UH) / 2, 2)], logoW=round(232 * SX, 2),
         jacks=L['jacks'], scale=dict(sx=SX, sy=SY),
     )
     with open(os.path.join(HERE, 'layout.json'), 'w') as f: json.dump(lay, f, indent=1)
