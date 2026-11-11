@@ -27,7 +27,8 @@ SRC = np.asarray(Image.open(os.path.join(ROOT, 'design', 'fantomine_design_sourc
 H0, W0 = SRC.shape[:2]
 
 # ------------------------------------------------------------------ géométrie du design (px du design)
-BODY = (65.5, 7.0, 1605.5, 1253.0)               # x0, y0, x1, y1 du boîtier violet
+BODY = (65.5 + 14, 7.0 + 14, 1605.5 - 14, 1253.0 - 14)   # boîtier violet du design, 14 px à l'intérieur de ses bords
+                                                 # (biseaux d'origine irréguliers : redessinés par make_edges)
 BODY_R = 40.0                                    # rayon des coins
 KNOBS_D = [(239, 587), (473, 587), (707, 587), (969, 587), (1204, 587), (1438, 587)]
 KNOB_RD = 86.0                                   # rayon extérieur de la couronne
@@ -40,7 +41,7 @@ OCT_HANDLE_D = (288, 1038, 386, 1123)            # levier (retiré du fond, spri
 OCT_SHADOW_D = (300, 1112, 400, 1138)            # ombre du levier sous la fente
 STATUS_D = (575, 846, 1100, 902)
 LOGO_D = (1215, 1062, 1470, 1118)
-MONO_D = (1495, 1146, 1538, 1200)                # « F » gravé
+MONO_D = (1484, 1134, 1550, 1212)                # « F » gravé (retiré à la demande de l'utilisateur)
 SCREWS_D = [(114, 51), (1564, 51), (114, 1210), (1564, 1210)]
 TEXT_BOXES_D = [
     (275, 296, 615, 330),                        # THEREMIN VOICE
@@ -96,7 +97,7 @@ def build_clean():
     A = A_low / gain[..., None] + (A - A_low) * np.clip(1.0 / gain, 1.0, 1.6)[..., None]
     m = np.zeros((h, w), bool)
     for cx, cy in KNOBS_D: m |= np.hypot(xx - cx - 2, yy - cy - 3) < 124
-    for (x0, y0, x1, y1) in TEXT_BOXES_D + [TITLE_D, STATUS_D, LOGO_D, OCT_HANDLE_D, OCT_SHADOW_D]:
+    for (x0, y0, x1, y1) in TEXT_BOXES_D + [TITLE_D, STATUS_D, LOGO_D, OCT_HANDLE_D, OCT_SHADOW_D, MONO_D]:   # MONO_D : « F » gravé retiré (demande)
         m[y0:y1, x0:x1] = True
     for sx, sy in SCREWS_D: m |= np.hypot(xx - sx - 1, yy - sy - 1) < 34
     m |= np.hypot(xx - LED_D[0], yy - LED_D[1]) < 64
@@ -109,24 +110,85 @@ def build_clean():
     inside = (xx > BODY[0] + 6) & (xx < BODY[2] - 6) & (yy > BODY[1] + 6) & (yy < BODY[3] - 6)
     scr = np.zeros_like(m); x0, y0, x1, y1 = SCREEN_D; scr[y0 - 6:y1 + 6, x0 - 6:x1 + 6] = True   # cadre de l'écran : jamais pris comme modèle
     clean = (~m & inside & ~scr).astype(np.float32)
+    # base de l'interpolation : façade sans grain ni gravures (médiane), sinon l'échelle fine crée des taches
+    A_s = cv2.medianBlur(np.clip(A, 0, 255).astype(np.uint8), 7).astype(np.float32)
+    A_s = cv2.GaussianBlur(A_s, (0, 0), 3)
     def nconv(sig):
-        num = np.dstack([cv2.GaussianBlur(A[..., c] * clean, (0, 0), sig) for c in range(3)])
+        num = np.dstack([cv2.GaussianBlur(A_s[..., c] * clean, (0, 0), sig) for c in range(3)])
         den = cv2.GaussianBlur(clean, (0, 0), sig)[..., None]
         return num / np.maximum(den, 1e-5), den
     low = None
-    for sig in (60, 24, 9):
+    for sig in (60, 24, 12):
         p, d = nconv(sig)
         a_ = np.clip((d - 0.04) / 0.3, 0, 1)
         low = p if low is None else low * (1 - a_) + p * a_
-    # grain de la façade : bruit fin synthétique (aucune mosaïque, donc aucun motif répété),
-    # amplitude mesurée sur une zone de façade saine
+    # détail de la façade (grain, gravures) : recopié d'une zone saine voisine, décalée horizontalement
+    # (les lignes de champ sont presque horizontales : elles se prolongent), jamais de bruit synthétique
+    detail = A - A_s
+    grain = np.zeros_like(A)
+    # par rangée : chaque segment masqué reçoit le détail du segment sain de même longueur juste à sa gauche
+    # (ou à sa droite) ; seuls les pixels sains de la source sont recopiés
+    okmask = (~m) & inside & ~scr
+    sx0, sy0, sx1, sy1 = OCT_SLOT_D; okmask[sy0 - 10:sy1 + 10, sx0 - 10:sx1 + 10] = False   # fente d'octave : jamais recopiée
+    okmask &= np.hypot(xx - FS_D[0], yy - FS_D[1]) > 140                                      # ni l'ancien footswitch
+    okmask &= np.abs(detail).max(2) < 24                                                     # ni une arête franche (gravures seulement)
+    target = m_plate
+    left_over = np.zeros_like(m_plate)
+    for y in range(h):
+        row = target[y]
+        if not row.any(): continue
+        xs = np.nonzero(row)[0]
+        runs = np.split(xs, np.nonzero(np.diff(xs) > 1)[0] + 1)
+        for r_ in runs:
+            a0, b0 = r_[0], r_[-1] + 1; n_ = b0 - a0
+            for src0 in (a0 - n_ - 4, b0 + 4, a0 - 2 * n_ - 8, b0 + n_ + 8):
+                if src0 < 0 or src0 + n_ > w: continue
+                okr = okmask[y, src0:src0 + n_]
+                if okr.mean() > 0.9:
+                    grain[y, a0:b0] = detail[y, src0:src0 + n_] * okr[:, None]
+                    break
+            else:
+                left_over[y, a0:b0] = True
+    # zones sans source horizontale (bord du boîtier, titre) : copie 2D d'un bloc sain voisin (même décalage
+    # pour toute la zone, donc aucune strie)
+    # par carreaux de 48 px, chacun pris dans un carreau sain voisin (grain fin : aucune couture visible)
+    T = 48
+    lo = ndi_dilate(left_over, 3) if left_over.any() else left_over
+    for ty in range(0, h, T):
+        for tx in range(0, w, T):
+            sub = lo[ty:ty + T, tx:tx + T]
+            if not sub.any(): continue
+            th_, tw_ = sub.shape
+            for dy, dx in ((-T, 0), (T, 0), (0, T), (0, -T), (-2 * T, 0), (2 * T, 0), (-T, T), (-T, -T), (T, T), (T, -T),
+                           (-3 * T, 0), (3 * T, 0), (0, 2 * T), (0, -2 * T)):
+                y2, x2 = ty + dy, tx + dx
+                if y2 < 0 or x2 < 0 or y2 + th_ > h or x2 + tw_ > w: continue
+                okr = okmask[y2:y2 + th_, x2:x2 + tw_]
+                if okr.mean() > 0.9:
+                    g = grain[ty:ty + th_, tx:tx + tw_]
+                    g[sub] = (detail[y2:y2 + th_, x2:x2 + tw_] * okr[..., None])[sub]
+                    break
+            else:
+                # dernier recours (bord du boîtier) : carreau sain le plus proche, cherché en spirale
+                found = False
+                for rad in range(2, 12):
+                    for dy, dx in ((-rad * T, 0), (rad * T, 0), (0, rad * T), (0, -rad * T)):
+                        y2, x2 = ty + dy, tx + dx
+                        if y2 < 0 or x2 < 0 or y2 + th_ > h or x2 + tw_ > w: continue
+                        okr = okmask[y2:y2 + th_, x2:x2 + tw_]
+                        if okr.mean() > 0.8:
+                            g = grain[ty:ty + th_, tx:tx + tw_]
+                            g[sub] = (detail[y2:y2 + th_, x2:x2 + tw_] * okr[..., None])[sub]
+                            found = True; break
+                    if found: break
+    # pixels restés sans détail (quelques px au bord du boîtier) : grain fin de même amplitude que la façade voisine
     rng = np.random.default_rng(4)
-    hp = SRC - cv2.GaussianBlur(SRC, (0, 0), 2.2)
-    ref = hp[30:90, 330:640]                       # façade saine (haut gauche, sans gravure ni ombre)
-    sd = float(np.std(ref.mean(2)))
-    nz = cv2.GaussianBlur(rng.normal(0, 1, (h, w)).astype(np.float32), (0, 0), 0.75)
-    nz *= sd / max(1e-6, float(np.std(nz)))
-    grain = np.dstack([nz, nz * 0.97, nz * 1.04]) * 0.7
+    empty = m_plate & (np.abs(grain).max(2) < 1e-6)
+    if empty.any():
+        sd = float(np.std(detail[okmask].mean(1)))
+        nz = cv2.GaussianBlur(rng.normal(0, 1, (h, w)).astype(np.float32), (0, 0), 0.8)
+        nz *= sd / max(1e-6, float(np.std(nz)))
+        grain[empty] = np.dstack([nz, nz, nz * 1.03])[empty]
     fill = low + grain
     soft = cv2.GaussianBlur(m_plate.astype(np.float32), (0, 0), 3.0)[..., None]
     soft = np.clip(soft * 1.6, 0, 1)
@@ -162,18 +224,60 @@ def body_alpha(wpx, hpx, rpx):
 
 BRAND_K = 416.0 / 2499.0                           # unités par unité du viewBox du logo Fantomine
 
+def ndi_dilate(mk, it):
+    from scipy import ndimage as ndi
+    return ndi.binary_dilation(mk, iterations=it)
+
+
+def make_edges(body, rpx):
+    """Biseau usiné identique sur tout le pourtour (coins arrondis compris), lumière en haut à gauche à 45° :
+    arête claire côté haut / gauche, arête sombre côté bas / droite, légère ombre interne."""
+    h, w = body.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
+    # distance signée au rectangle arrondi (positive à l'intérieur) et normale sortante
+    qx = np.abs(xx - w / 2) - (w / 2 - rpx); qy = np.abs(yy - h / 2) - (h / 2 - rpx)
+    ox, oy = np.maximum(qx, 0), np.maximum(qy, 0)
+    outside = np.hypot(ox, oy) + np.minimum(np.maximum(qx, qy), 0)
+    d = rpx - outside                                   # profondeur depuis le bord (px)
+    nx = np.where(qx > qy, np.sign(xx - w / 2), 0.0); ny = np.where(qy >= qx, np.sign(yy - h / 2), 0.0)
+    corner = (qx > 0) & (qy > 0)
+    ln = np.maximum(np.hypot(ox, oy), 1e-3)
+    nx = np.where(corner, np.sign(xx - w / 2) * ox / ln, nx); ny = np.where(corner, np.sign(yy - h / 2) * oy / ln, ny)
+    facing = -(nx + ny) / math.sqrt(2)                  # +1 face à la lumière (haut gauche), -1 à l'opposé
+    out = body.copy()
+    bevel_w = 5.0 * AS                                  # largeur du biseau
+    t = np.clip(d / bevel_w, 0, 1)
+    prof = np.exp(-((d - 1.6 * AS) / (1.1 * AS)) ** 2)  # arête fine
+    lift = np.where(facing > 0, 0.55, 0.42) * facing * prof * 255 * 0.55
+    out = out + lift[..., None] * np.array([1.0, 0.96, 1.08])
+    # chanfrein : légère pente qui s'assombrit côté bas / droite, s'éclaircit côté haut / gauche
+    ramp = (1 - t) * 0.10 * facing
+    out = out * (1 + ramp[..., None])
+    # ombre interne très douce sous l'arête (épaisseur de la peinture)
+    inner = np.exp(-((d - 4.2 * AS) / (1.6 * AS)) ** 2) * 0.06
+    out = out * (1 - inner[..., None])
+    # liseré extérieur sombre (contact avec le fond)
+    rim = np.clip(1 - d / (0.9 * AS), 0, 1) * 0.55
+    out = out * (1 - rim[..., None])
+    return out
+
+
 def make():
     clean = build_clean()
     W, Hh = int(UW * AS), int(UH * AS)                    # 2350 x 1800
     bx0 = int(round(BOX_X0 * AS)); bw = int(round(BOX_W * AS)); bh = Hh
     x0, y0, x1, y1 = BODY
-    crop = clean[int(y0):int(math.ceil(y1)), int(x0):int(math.ceil(x1))]
+    # bords du design retirés (biseaux irréguliers d'un coin à l'autre) : on recadre 14 px à l'intérieur puis on
+    # étire légèrement ; le biseau est redessiné identique sur les quatre coins (make_edges)
+    IN = 0
+    crop = clean[int(y0) + IN:int(math.ceil(y1)) - IN, int(x0) + IN:int(math.ceil(x1)) - IN]
     body = cv2.resize(crop, (bw, bh), interpolation=cv2.INTER_LANCZOS4)
     # grain fin à la résolution finale (l'agrandissement 1,45x adoucit la peinture)
     rng = np.random.default_rng(11)
     g = cv2.GaussianBlur(rng.normal(0, 1, (bh, bw)).astype(np.float32), (0, 0), 0.7) * 3.2
     body = body + g[..., None]
     a_body = body_alpha(bw, bh, BODY_R * SY * AS)
+    body = make_edges(body, BODY_R * SY * AS)
     canvas = np.zeros((Hh, W, 4), np.float32)
     canvas[:, bx0:bx0 + bw, :3] = body
     canvas[:, bx0:bx0 + bw, 3] = a_body * 255
