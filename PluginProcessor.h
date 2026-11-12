@@ -65,6 +65,7 @@ public:
     void assignCC (int target, int cc);          // target 0..4 ou kLearnFootswitch ; retire ce CC des autres cibles
     static float shapePedal (float e, bool bipolar);
     std::array<std::atomic<int>, kNumTargets> targetCC { { { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 } } };  // -1 = non assigné
+    std::atomic<int>  pendingProgram { -1 };     // Program Change recu (thread audio), applique par le timer
     std::atomic<bool> midiFsLatching { false };  // footswitch MIDI : true = latching (127 = on / 0 = off), false = appui / relache (bascule a chaque appui)
     std::atomic<int>  footswitchCC { -1 };     // -1 = non assigné (utiliser le MIDI learn du DAW)
     static constexpr int kLearnFootswitch = 100;

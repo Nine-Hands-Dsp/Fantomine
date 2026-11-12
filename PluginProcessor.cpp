@@ -223,6 +223,12 @@ void FantomineAudioProcessor::timerCallback()
         if (pendingSet[i].exchange (false, std::memory_order_acquire))
             if (auto* p = apvts.getParameter (queuedId (i)))
                 p->setValueNotifyingHost (p->convertTo0to1 (pendingValue[i].load (std::memory_order_relaxed)));
+    const int pc = pendingProgram.exchange (-1);
+    if (pc >= 0 && pc < getNumPrograms())                   // Program Change = presets d'usine
+    {
+        setCurrentProgram (pc);
+        updateHostDisplay (juce::AudioProcessor::ChangeDetails().withProgramChanged (true));
+    }
 }
 
 void FantomineAudioProcessor::footswitchDown()
@@ -264,6 +270,7 @@ void FantomineAudioProcessor::handleMidi (const juce::MidiBuffer& midi, int)
     for (const auto meta : midi)
     {
         const auto m = meta.getMessage();
+        if (m.isProgramChange()) { pendingProgram.store (m.getProgramChangeNumber()); continue; }
         if (! m.isController()) continue;
 
         const int cc = m.getControllerNumber();
