@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Fantomine VERSION 2.0.0 LANGUAGES C CXX)
+project(Fantomine VERSION 2.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -64,6 +64,17 @@ target_sources(Fantomine PRIVATE
     PluginProcessor.cpp
     PluginEditor.cpp)
 
+
+# verrou de taille de la fenetre du DAW (jamais sous 60 %, jamais au-dela de 150 %)
+if(APPLE)
+  target_sources(Fantomine PRIVATE WindowMinSize.mm)
+  target_link_libraries(Fantomine PRIVATE "-framework Cocoa")
+else()
+  target_sources(Fantomine PRIVATE WindowMinSize.cpp)
+endif()
+if(WIN32)
+  target_link_libraries(Fantomine PRIVATE comctl32 user32)
+endif()
 target_compile_definitions(Fantomine PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0

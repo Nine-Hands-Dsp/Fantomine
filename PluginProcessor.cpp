@@ -307,7 +307,8 @@ void FantomineAudioProcessor::handleMidi (const juce::MidiBuffer& midi, int)
 
         if (cc == footswitchCC.load())
         {
-            if (val >= 64) footswitchDown(); else footswitchUp();
+            if (midiFsLatching.load()) setParamQueued ("bypass", val >= 64 ? 0.0f : 1.0f);   // latching : 127 = on, 0 = off
+            else if (val >= 64) footswitchDown(); else footswitchUp();
         }
     }
 }
@@ -510,6 +511,7 @@ void FantomineAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("footswitchCC", footswitchCC.load(), nullptr);
     state.setProperty ("uiScaleIdx", uiScaleIdx.load(), nullptr);
     state.setProperty ("uiHeight", uiHeight.load(), nullptr);
+    state.setProperty ("midiFsLatching", midiFsLatching.load(), nullptr);
     state.setProperty ("presetName", currentPresetName, nullptr);
     state.setProperty ("program", currentProgram, nullptr);
     if (auto xml = state.createXml())
@@ -535,8 +537,15 @@ void FantomineAudioProcessor::setStateInformation (const void* data, int sizeInB
         for (int t = 0; t < kNumTargets; ++t)
             if (t != kPitch && targetCC[(size_t) t].load() >= 0) factory = false;
         if (factory) targetCC[kPitch].store (-1);
-        uiScaleIdx.store ((int) state.getProperty ("uiScaleIdx", -1));
         uiHeight.store ((int) state.getProperty ("uiHeight", -1));
+        midiFsLatching.store ((bool) state.getProperty ("midiFsLatching", false));
+        {
+            // v2.1 : taille du menu (uiScaleIdx) ; projet plus ancien : sa hauteur si c'est une des trois tailles du menu
+            int idx = -1;
+            const int hs[3] = { 495, 557, 743 };
+            for (int i = 0; i < 3; ++i) if (uiHeight.load() > 0 && std::abs (uiHeight.load() - hs[i]) <= 2) idx = i;
+            uiScaleIdx.store (juce::jlimit (-1, 2, state.hasProperty ("midiFsLatching") ? (int) state.getProperty ("uiScaleIdx", -1) : idx));
+        }
         currentPresetName = state.getProperty ("presetName", "Classic Theremin").toString();
         currentProgram = (int) state.getProperty ("program", 0);
         const bool wa = (bool) state.getProperty ("whammyActive", false);

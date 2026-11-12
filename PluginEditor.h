@@ -4,6 +4,7 @@
 #include "PluginProcessor.h"
 #include "Layout.h"
 #include "NineHandsMenu.h"
+#include "NineHandsWindow.h"
 #include "NHKnob.h"
 
 //==============================================================================
@@ -67,6 +68,9 @@ private:
     juce::String presetLine() const;
     void showPresetMenu();
     void showContextMenu (int focus);
+public:
+    juce::PopupMenu buildContextMenu (int focus = -1);   // menu clic droit (aussi pour l'outil de controle des menus)
+private:
     void buildPrint();
 
     void drawTitle (juce::Graphics&);
@@ -78,6 +82,7 @@ private:
 
     FantomineAudioProcessor& proc;
     NineHandsMenu::MenuLnf menuLnf;
+    NineHandsWindow::HostLock hostLock;    // fenetre du DAW : jamais sous 60 %, jamais au-dela de 150 %
     juce::Typeface::Ptr mediumFace, boldFace, regularFace;
     std::unique_ptr<juce::Drawable> logo, subtitle;
     juce::Path namePath, printPath;          // noms des potards (clair) ; graduations, min/max, octave, jacks, BYPASS (gris)

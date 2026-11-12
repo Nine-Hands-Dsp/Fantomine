@@ -109,12 +109,11 @@ FantomineAudioProcessorEditor::FantomineAudioProcessorEditor (FantomineAudioProc
     // taille : 495 px de haut par defaut (« 60 % ») = taille minimale, proportions bloquees ;
     // ouverture a la taille enregistree pour cette instance, sinon a la taille par defaut choisie dans le menu
     const double aspect = (double) baseW / (double) baseH;
-    const int saved = proc.uiHeight.load();
-    const int h0 = saved > 0 ? jlimit (heightDefault, heightMax, saved)
-                             : sizeHeight (WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes));
+    const int h0 = sizeHeight (NineHandsWindow::openIndex (JucePlugin_Name, proc.uiScaleIdx.load(), numSizes));
     setResizable (true, true);
     setResizeLimits (roundToInt (heightDefault * aspect), heightDefault, roundToInt (heightMax * aspect), heightMax);
     getConstrainer()->setFixedAspectRatio (aspect);
+    hostLock.setLimits (roundToInt (heightDefault * aspect), heightDefault, roundToInt (heightMax * aspect), heightMax);
     setOpaque (true);                    // anti-gel : l'hote ne redessine jamais ce qui est derriere la fenetre
     openHeight = h0;
     setSize (roundToInt (h0 * aspect), h0);
@@ -158,7 +157,7 @@ void FantomineAudioProcessorEditor::useSoftwareRenderer()
    #endif
 }
 
-void FantomineAudioProcessorEditor::parentHierarchyChanged() { useSoftwareRenderer(); }
+void FantomineAudioProcessorEditor::parentHierarchyChanged() { useSoftwareRenderer(); hostLock.track (*this); }
 void FantomineAudioProcessorEditor::visibilityChanged()      { useSoftwareRenderer(); if (isShowing()) repaint(); }
 
 float FantomineAudioProcessorEditor::physicalScale() const
@@ -175,9 +174,7 @@ void FantomineAudioProcessorEditor::askRepaint (Rectangle<float> u)
 
 void FantomineAudioProcessorEditor::resized()
 {
-    // jamais de setSize ici ; taille de l'instance enregistree seulement si elle a ete changee
-    if (proc.uiHeight.load() > 0 || (openHeight > 0 && std::abs (getHeight() - openHeight) > 2))
-        proc.uiHeight.store (jlimit (heightDefault, heightMax, getHeight()));
+    // jamais de setSize ici ; seules les tailles choisies au menu sont enregistrees (pas celles tirees au coin)
     const float s = k();
     for (int i = 0; i < 6; ++i)
         knobs[(size_t) i]->setBounds (Rectangle<float> (layout::knobLayer, layout::knobLayer).withCentre (layout::knobPos[i])
@@ -195,6 +192,7 @@ void FantomineAudioProcessorEditor::setWindowHeight (int h)
 {
     h = jlimit (heightDefault, heightMax, h);
     setSize (roundToInt ((double) h * baseW / baseH), h);
+    hostLock.enforce();
 }
 
 void FantomineAudioProcessorEditor::rebuildCaches (float sc)
@@ -315,6 +313,7 @@ void FantomineAudioProcessorEditor::timerCallback()
     const float dt = (float) jlimit (0.0, 0.1, (now - lastTickMs) / 1000.0);
     lastTickMs = now;
     if (getPeer() != lastPeer || now - lastRendererCheckMs > 1000.0) { lastRendererCheckMs = now; useSoftwareRenderer(); }
+    hostLock.track (*this);
     if (resizeSettle > 0 && --resizeSettle == 0) rebuildCaches();
     else if (resizeSettle == 0 && now - lastScaleCheckMs > 250.0)
     {
@@ -801,7 +800,7 @@ void FantomineAudioProcessorEditor::showPresetMenu()
 //==============================================================================
 // Menu clic droit (design d'Octopus, NineHandsMenu.h), toujours ouvert a l'endroit du clic
 //==============================================================================
-void FantomineAudioProcessorEditor::showContextMenu (int focus)
+PopupMenu FantomineAudioProcessorEditor::buildContextMenu (int focus)
 {
     using namespace NineHandsMenu;
     PopupMenu menu;
@@ -821,36 +820,10 @@ void FantomineAudioProcessorEditor::showContextMenu (int focus)
         const int clearId = focus == P::kLearnFootswitch ? 31 : 1001 + focus * 10;
         menu.addItem (learnId, "MIDI Learn: " + title, true, lt == focus);
         menu.addItem (clearId, "Clear MIDI: " + title, ccOf (focus) >= 0);
-        if (lt >= 0) menu.addItem (1200, "Cancel MIDI learn");
-        menu.addSeparator();
+        menu.addItem (1200, "Cancel MIDI learn", lt >= 0);
+        return menu;
     }
-    else
-        addHeader (menu, menuLnf.f, icoPedal, menuAccent, "Fantomine", "Theremin voice  v" + String (JucePlugin_VersionString));
-
-    PopupMenu sizes, defSizes;
-    {
-        const char* names[numSizes] = { "60 %", "75 %", "100 %" };
-        const int def = WigaWindowSize::defaultIndex (JucePlugin_Name, numSizes);
-        for (int i = 0; i < numSizes; ++i)
-        {
-            sizes.addItem (1 + i, String (names[i]) + (i == def ? "  (default)" : ""), true, std::abs (getHeight() - sizeHeight (i)) <= 2);
-            defSizes.addItem (20 + i, names[i], true, i == def);
-        }
-        sizes.addSeparator();
-        sizes.addSubMenu ("Default size (new windows)", defSizes);
-    }
-    menu.addSubMenu ("Plugin size", sizes);
-    PopupMenu glowM;
-    {
-        const int now = roundToInt (glow * 100.0f);
-        for (int i = 0; i < NineHandsGlow::numSteps; ++i)
-        {
-            const int pc = NineHandsGlow::steps[i];
-            glowM.addItem (60 + i, "Glow " + String (pc) + " %" + (pc == 100 ? "  (default)" : ""), true, now == pc);
-        }
-    }
-    menu.addSubMenu ("Glow (halo of the lights)", glowM);
-    menu.addSeparator();
+    addHeader (menu, menuLnf.f, icoPedal, menuAccent, "Fantomine", "Theremin voice  v" + String (JucePlugin_VersionString));
 
     PopupMenu factory, load, save;
     const auto& fp = P::getFactoryPresets();
@@ -860,8 +833,8 @@ void FantomineAudioProcessorEditor::showContextMenu (int focus)
     for (int s = 1; s <= 9; ++s)
     {
         const bool used = proc.isUserSlotUsed (s);
-        load.addItem (200 + s, "User " + String (s) + (used ? "  " + proc.getUserSlotName (s) : String ("  (empty)")), used);
-        save.addItem (300 + s, "User " + String (s) + (used ? "  " + proc.getUserSlotName (s) + "  (overwrite)" : String()));
+        load.addItem (200 + s, "User " + String (s) + (used ? " : " + proc.getUserSlotName (s) : String ("  (empty)")), used);
+        save.addItem (300 + s, "User " + String (s) + (used ? " : " + proc.getUserSlotName (s) + "  (overwrite)" : String()));
     }
     menu.addSubMenu ("Factory presets", factory);
     menu.addSubMenu ("Load user preset", load);
@@ -880,48 +853,51 @@ void FantomineAudioProcessorEditor::showContextMenu (int focus)
     wrange.addItem (42, "Heel 0  >  toe +1 oct", true, wr == 1);
     wrange.addItem (43, "Heel 0  >  toe -1 oct", true, wr == 2);
     settings.addSubMenu ("Octave whammy range", wrange);
+    settings.addSeparator();
+    settings.addItem (50, "MIDI pedals inverted (heel / toe)", true, flag (proc, "invert"));
     menu.addSubMenu ("Settings", settings);
+    menu.addSeparator();
 
-    // MIDI : MIDI Learn de chaque commande (aucun CC par defaut), sens des pedales, footswitch
-    PopupMenu midi, foot;
+    // MIDI (tronc commun) : MIDI Learn de chaque commande (aucun CC par defaut)
+    PopupMenu midi;
     midi.addSectionHeader ("MIDI Learn");
     for (int t = 0; t < P::kNumTargets; ++t)
     {
         const String label = t == P::kPitch ? "PITCH (bend)" : t == P::kOctave ? "OCTAVE (whammy)" : String (P::getTargetName (t));
         midi.addItem (1000 + t * 10, "Learn: " + label + "  (" + ccText (ccOf (t)) + ")", true, lt == t);
     }
-    const int fcc = proc.footswitchCC.load();
-    foot.addItem (30, "MIDI Learn (press the footswitch)", true, lt == P::kLearnFootswitch);
-    foot.addItem (31, "Clear MIDI: footswitch", fcc >= 0);
-    foot.addItem (32, "CC 64", true, fcc == 64);
-    foot.addItem (33, "CC 80", true, fcc == 80);
-    midi.addSubMenu ("Footswitch  (" + ccText (fcc) + ")", foot, true, nullptr, lt == P::kLearnFootswitch);
+    midi.addItem (30, "Learn: Footswitch  (" + ccText (proc.footswitchCC.load()) + ")", true, lt == P::kLearnFootswitch);
     midi.addSeparator();
-    if (lt >= 0) midi.addItem (1200, "Cancel MIDI learn");
+    midi.addItem (1200, "Cancel MIDI learn", lt >= 0);
     midi.addItem (1201, "Clear all MIDI assignments");
     midi.addSeparator();
-    midi.addItem (50, "MIDI pedals inverted (heel / toe)", true, flag (proc, "invert"));
+    NineHandsWindow::addMidiFootswitchMode (midi, proc.midiFsLatching.load());
+    midi.addSeparator();
+    NineHandsWindow::addProgramChangeInfo (midi);
     menu.addSubMenu ("MIDI", midi);
     menu.addSeparator();
-    menu.addItem (999, "Fantomine v" + String (JucePlugin_VersionString) + "  NINE HANDS | DSP", false);
 
+    const char* names[numSizes] = { "60 %", "75 %", "100 %" };
+    const int heights[numSizes] = { sizeHeight (0), sizeHeight (1), sizeHeight (2) };
+    menu.addSubMenu ("Plugin size", NineHandsWindow::sizeMenu (JucePlugin_Name, numSizes, names, heights, getHeight()));
+    menu.addSubMenu ("Glow intensity", NineHandsWindow::glowMenu (roundToInt (glow * 100.0f)));
+    return menu;
+}
+
+void FantomineAudioProcessorEditor::showContextMenu (int focus)
+{
+    auto menu = buildContextMenu (focus);
     menu.showMenuAsync (PopupMenu::Options().withMousePosition(),       // toujours la ou l'on clique
         [safe = Component::SafePointer<FantomineAudioProcessorEditor> (this)] (int r)
         {
             if (safe == nullptr || r == 0) return;
             auto& ed = *safe;
             auto& pr = ed.proc;
-            if      (r >= 1 && r < 1 + numSizes) ed.setWindowHeight (sizeHeight (r - 1));
-            else if (r >= 20 && r < 20 + numSizes)
-            {
-                WigaWindowSize::setDefaultIndex (JucePlugin_Name, r - 20);
-                ed.setWindowHeight (sizeHeight (r - 20));
-            }
-            else if (r >= 60 && r < 60 + NineHandsGlow::numSteps)
-            {
-                ed.setGlowPercent (NineHandsGlow::steps[r - 60]);
-                ed.flash ("Glow  " + String (NineHandsGlow::steps[r - 60]) + " %");
-            }
+            int inst = pr.uiScaleIdx.load();
+            const int sz = NineHandsWindow::handleSize (r, JucePlugin_Name, numSizes, inst);
+            if (sz >= 0) { pr.uiScaleIdx = inst; ed.setWindowHeight (sizeHeight (sz)); return; }
+            if (const int pc = NineHandsWindow::handleGlow (r, JucePlugin_Name)) { ed.setGlowPercent (pc); ed.flash ("Glow  " + String (pc) + " %"); return; }
+            if (r == NineHandsWindow::idLatch || r == NineHandsWindow::idMomentary) pr.midiFsLatching = r == NineHandsWindow::idLatch;
             else if (r >= 100 && r < 200)
             {
                 pr.setCurrentProgram (r - 100);
