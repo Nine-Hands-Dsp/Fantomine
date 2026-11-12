@@ -15,8 +15,6 @@ d'expression MIDI courbe la hauteur en continu, comme une main près de l'antenn
 
 Notice complète en français : [docs/Fantomine_Notice_FR_v2.0.0.pdf](docs/Fantomine_Notice_FR_v2.0.0.pdf)
 
-<p align="center"><img src="design/screens/fantomine_60.png" width="646" alt="Fantomine"></p>
-
 ## Installation
 
 - **Windows** : copier `Fantomine.vst3` dans `C:\Program Files\Common Files\VST3\`
